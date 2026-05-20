@@ -26,6 +26,26 @@ java --enable-native-access=ALL-UNNAMED -jar zbo/lightmetal.jar \
 Options: `-backend native|cpu|vulkan` (default `native`), `-max-tokens`,
 `-temperature`, `-top-p`, `-top-k`, `-min-p`, `-seed`, `-help`.
 
+With every parameter set in `~/.lightmetal/app.properties`:
+
+```properties
+model=/Users/abien/Downloads/Mistral-Medium-3.5-128B-UD-Q5_K_XL-00001-of-00003.gguf
+backend=native
+max-tokens=256
+temperature=0.7
+top-p=0.9
+top-k=40
+min-p=0.05
+```
+
+the invocation collapses to just the prompt (CLI flags still override any
+property):
+
+```
+java --enable-native-access=ALL-UNNAMED -jar zbo/lightmetal.jar \
+     -prompt "What is Java?"
+```
+
 ## Architecture
 
 ```mermaid

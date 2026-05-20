@@ -25,15 +25,24 @@ void main(String... args) {
             parsed.topK(),
             parsed.minP(),
             parsed.seed());
+    var count = new long[1];
+    var startNanos = new long[1];
     try (var lm = LightMetal.load(Path.of(parsed.model()), backend)) {
         try (var stream = lm.generate(parsed.prompt(), cfg)) {
             stream.forEach(t -> {
+                if (startNanos[0] == 0L) startNanos[0] = System.nanoTime();
+                count[0]++;
                 IO.print(t.text());
                 System.out.flush();
             });
         }
     }
     IO.println("");
+    if (count[0] > 1) {
+        var seconds = (System.nanoTime() - startNanos[0]) / 1_000_000_000.0;
+        System.err.printf("%n[%d tokens, %.1f s, %.1f tok/s]%n",
+                count[0], seconds, (count[0] - 1) / seconds);
+    }
 }
 
 Backend backendFor(String name) {
