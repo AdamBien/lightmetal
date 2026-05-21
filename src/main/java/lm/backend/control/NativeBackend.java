@@ -54,6 +54,19 @@ public final class NativeBackend implements Backend {
                 throw new IllegalStateException("failed to load model: " + gguf);
             }
             this.vocab = llama_model_get_vocab(model);
+            logChatTemplate();
+        }
+
+        private void logChatTemplate() {
+            var tmplPtr = llama_model_chat_template(model, MemorySegment.NULL);
+            if (MemorySegment.NULL.equals(tmplPtr)) {
+                System.err.println("[chat_template] (none stored in GGUF)");
+                return;
+            }
+            var tmpl = tmplPtr.reinterpret(Long.MAX_VALUE).getString(0);
+            System.err.println("[chat_template]");
+            System.err.println(tmpl);
+            System.err.println("[/chat_template]");
         }
 
         @Override
@@ -140,8 +153,7 @@ public final class NativeBackend implements Backend {
                 state.stop();
                 return null;
             }
-            sampler.accept(id);
-            var piece = tokenizer.tokenToPiece(id, false);
+            var piece = tokenizer.tokenToPiece(id, true);
             state.advance();
             feedBack(id, state);
             return new Token(id, piece);

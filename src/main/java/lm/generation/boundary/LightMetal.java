@@ -27,8 +27,11 @@ public final class LightMetal implements AutoCloseable {
     }
 
     public Stream<Token> generate(String userPrompt, GenerationConfig cfg) {
-        var formatted = PromptTemplate.mistralInstruct(userPrompt);
-        var promptTokens = ctx.tokenize(formatted, ADD_BOS);
+        return complete(PromptTemplate.mistralInstruct(userPrompt), cfg);
+    }
+
+    public Stream<Token> complete(String formattedPrompt, GenerationConfig cfg) {
+        var promptTokens = ctx.tokenize(formattedPrompt, ADD_BOS);
         return ctx.generate(promptTokens, cfg);
     }
 

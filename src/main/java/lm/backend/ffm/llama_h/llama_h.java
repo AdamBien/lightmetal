@@ -997,6 +997,67 @@ public class llama_h extends llama_h$shared {
         }
     }
 
+    private static class llama_model_chat_template {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("llama_model_chat_template");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * const char *llama_model_chat_template(const struct llama_model *model, const char *name)
+     * }
+     */
+    public static FunctionDescriptor llama_model_chat_template$descriptor() {
+        return llama_model_chat_template.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * const char *llama_model_chat_template(const struct llama_model *model, const char *name)
+     * }
+     */
+    public static MethodHandle llama_model_chat_template$handle() {
+        return llama_model_chat_template.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * const char *llama_model_chat_template(const struct llama_model *model, const char *name)
+     * }
+     */
+    public static MemorySegment llama_model_chat_template$address() {
+        return llama_model_chat_template.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * const char *llama_model_chat_template(const struct llama_model *model, const char *name)
+     * }
+     */
+    public static MemorySegment llama_model_chat_template(MemorySegment model, MemorySegment name) {
+        var mh$ = llama_model_chat_template.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("llama_model_chat_template", model, name);
+            }
+            return (MemorySegment)mh$.invokeExact(model, name);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class llama_memory_clear {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
             llama_h.C_POINTER,
@@ -1658,6 +1719,67 @@ public class llama_h extends llama_h$shared {
         try {
             if (TRACE_DOWNCALLS) {
                 traceDowncall("llama_vocab_is_eog", vocab, token);
+            }
+            return (boolean)mh$.invokeExact(vocab, token);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class llama_vocab_is_control {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            llama_h.C_BOOL,
+            llama_h.C_POINTER,
+            llama_h.C_INT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("llama_vocab_is_control");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * _Bool llama_vocab_is_control(const struct llama_vocab *vocab, llama_token token)
+     * }
+     */
+    public static FunctionDescriptor llama_vocab_is_control$descriptor() {
+        return llama_vocab_is_control.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * _Bool llama_vocab_is_control(const struct llama_vocab *vocab, llama_token token)
+     * }
+     */
+    public static MethodHandle llama_vocab_is_control$handle() {
+        return llama_vocab_is_control.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * _Bool llama_vocab_is_control(const struct llama_vocab *vocab, llama_token token)
+     * }
+     */
+    public static MemorySegment llama_vocab_is_control$address() {
+        return llama_vocab_is_control.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * _Bool llama_vocab_is_control(const struct llama_vocab *vocab, llama_token token)
+     * }
+     */
+    public static boolean llama_vocab_is_control(MemorySegment vocab, int token) {
+        var mh$ = llama_vocab_is_control.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("llama_vocab_is_control", vocab, token);
             }
             return (boolean)mh$.invokeExact(vocab, token);
         } catch (Error | RuntimeException ex) {
@@ -2882,6 +3004,72 @@ public class llama_h extends llama_h$shared {
                 traceDowncall("llama_sampler_init_grammar", vocab, grammar_str, grammar_root);
             }
             return (MemorySegment)mh$.invokeExact(vocab, grammar_str, grammar_root);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class llama_sampler_init_grammar_lazy_patterns {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_LONG,
+            llama_h.C_POINTER,
+            llama_h.C_LONG
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("llama_sampler_init_grammar_lazy_patterns");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar_lazy_patterns(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root, const char **trigger_patterns, size_t num_trigger_patterns, const llama_token *trigger_tokens, size_t num_trigger_tokens)
+     * }
+     */
+    public static FunctionDescriptor llama_sampler_init_grammar_lazy_patterns$descriptor() {
+        return llama_sampler_init_grammar_lazy_patterns.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar_lazy_patterns(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root, const char **trigger_patterns, size_t num_trigger_patterns, const llama_token *trigger_tokens, size_t num_trigger_tokens)
+     * }
+     */
+    public static MethodHandle llama_sampler_init_grammar_lazy_patterns$handle() {
+        return llama_sampler_init_grammar_lazy_patterns.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar_lazy_patterns(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root, const char **trigger_patterns, size_t num_trigger_patterns, const llama_token *trigger_tokens, size_t num_trigger_tokens)
+     * }
+     */
+    public static MemorySegment llama_sampler_init_grammar_lazy_patterns$address() {
+        return llama_sampler_init_grammar_lazy_patterns.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar_lazy_patterns(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root, const char **trigger_patterns, size_t num_trigger_patterns, const llama_token *trigger_tokens, size_t num_trigger_tokens)
+     * }
+     */
+    public static MemorySegment llama_sampler_init_grammar_lazy_patterns(MemorySegment vocab, MemorySegment grammar_str, MemorySegment grammar_root, MemorySegment trigger_patterns, long num_trigger_patterns, MemorySegment trigger_tokens, long num_trigger_tokens) {
+        var mh$ = llama_sampler_init_grammar_lazy_patterns.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("llama_sampler_init_grammar_lazy_patterns", vocab, grammar_str, grammar_root, trigger_patterns, num_trigger_patterns, trigger_tokens, num_trigger_tokens);
+            }
+            return (MemorySegment)mh$.invokeExact(vocab, grammar_str, grammar_root, trigger_patterns, num_trigger_patterns, trigger_tokens, num_trigger_tokens);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {

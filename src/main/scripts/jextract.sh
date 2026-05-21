@@ -22,11 +22,12 @@ FUNCTIONS=(
   llama_backend_init llama_backend_free
   llama_model_default_params llama_model_load_from_file llama_model_free
   llama_model_get_vocab llama_model_n_ctx_train llama_model_n_embd
+  llama_model_chat_template
   llama_context_default_params llama_new_context_with_model llama_free
   llama_n_ctx llama_get_model llama_get_memory
   llama_set_n_threads
   llama_vocab_n_tokens llama_vocab_get_text
-  llama_vocab_bos llama_vocab_eos llama_vocab_is_eog
+  llama_vocab_bos llama_vocab_eos llama_vocab_is_eog llama_vocab_is_control
   llama_vocab_get_add_bos llama_vocab_get_add_eos
   llama_tokenize llama_detokenize llama_token_to_piece
   llama_batch_init llama_batch_free llama_batch_get_one
@@ -36,7 +37,7 @@ FUNCTIONS=(
   llama_sampler_chain_add llama_sampler_free
   llama_sampler_init_temp llama_sampler_init_top_k llama_sampler_init_top_p
   llama_sampler_init_min_p llama_sampler_init_dist llama_sampler_init_greedy
-  llama_sampler_init_grammar
+  llama_sampler_init_grammar llama_sampler_init_grammar_lazy_patterns
   llama_sampler_sample llama_sampler_accept llama_sampler_reset
   llama_memory_clear llama_memory_seq_rm
   llama_chat_apply_template
