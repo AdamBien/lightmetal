@@ -3,6 +3,7 @@ package lm.backend.control;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
+import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
 import lm.configuration.entity.Token;
 
@@ -28,7 +29,11 @@ public sealed interface Backend
 
     record ContextParams(int contextLength, int batchSize, int gpuLayers, long seed) {
         public static ContextParams defaults() {
-            return new ContextParams(4096, 4096, -1, 0);
+            return new ContextParams(
+                    ZCfg.integer("context.length", 32768),
+                    ZCfg.integer("context.batch.size", 2048),
+                    ZCfg.integer("context.gpu.layers", -1),
+                    ZCfg.integer("context.seed", 0));
         }
     }
 }
