@@ -10,6 +10,7 @@ import lm.configuration.entity.GenerationConfig;
 public final class Sampler implements AutoCloseable {
 
     private static final long DEFAULT_MIN_KEEP = 1L;
+    private static final String GRAMMAR_ROOT = "root";
 
     private final MemorySegment chain;
 
@@ -17,10 +18,15 @@ public final class Sampler implements AutoCloseable {
         this.chain = chain;
     }
 
-    public static Sampler create(GenerationConfig cfg) {
+    public static Sampler create(GenerationConfig cfg, MemorySegment vocab) {
         try (var arena = Arena.ofConfined()) {
             var params = llama_sampler_chain_default_params(arena);
             var chain = llama_sampler_chain_init(params);
+            if (cfg.grammar() != null && !cfg.grammar().isBlank()) {
+                var grammarSeg = arena.allocateFrom(cfg.grammar());
+                var rootSeg = arena.allocateFrom(GRAMMAR_ROOT);
+                llama_sampler_chain_add(chain, llama_sampler_init_grammar(vocab, grammarSeg, rootSeg));
+            }
             llama_sampler_chain_add(chain, llama_sampler_init_top_k(cfg.topK()));
             llama_sampler_chain_add(chain, llama_sampler_init_top_p(cfg.topP(), DEFAULT_MIN_KEEP));
             llama_sampler_chain_add(chain, llama_sampler_init_min_p(cfg.minP(), DEFAULT_MIN_KEEP));

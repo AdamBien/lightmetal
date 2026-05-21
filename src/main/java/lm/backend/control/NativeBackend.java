@@ -125,7 +125,7 @@ public final class NativeBackend implements Backend {
         }
 
         private Stream<Token> tokenStream(GenerationConfig cfg) {
-            var sampler = Sampler.create(cfg);
+            var sampler = Sampler.create(cfg, parent.vocab);
             var state = new GenState(cfg.maxTokens());
             return Stream
                     .generate(() -> nextToken(sampler, state))

@@ -2827,6 +2827,68 @@ public class llama_h extends llama_h$shared {
         }
     }
 
+    private static class llama_sampler_init_grammar {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_POINTER,
+            llama_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("llama_sampler_init_grammar");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root)
+     * }
+     */
+    public static FunctionDescriptor llama_sampler_init_grammar$descriptor() {
+        return llama_sampler_init_grammar.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root)
+     * }
+     */
+    public static MethodHandle llama_sampler_init_grammar$handle() {
+        return llama_sampler_init_grammar.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root)
+     * }
+     */
+    public static MemorySegment llama_sampler_init_grammar$address() {
+        return llama_sampler_init_grammar.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * struct llama_sampler *llama_sampler_init_grammar(const struct llama_vocab *vocab, const char *grammar_str, const char *grammar_root)
+     * }
+     */
+    public static MemorySegment llama_sampler_init_grammar(MemorySegment vocab, MemorySegment grammar_str, MemorySegment grammar_root) {
+        var mh$ = llama_sampler_init_grammar.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("llama_sampler_init_grammar", vocab, grammar_str, grammar_root);
+            }
+            return (MemorySegment)mh$.invokeExact(vocab, grammar_str, grammar_root);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class llama_sampler_sample {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             llama_h.C_INT,

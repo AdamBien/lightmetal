@@ -16,6 +16,9 @@ import lm.configuration.entity.GenerationConfig;
 import lm.generation.boundary.LightMetal;
 import lm.http.entity.MessagesRequest;
 import lm.prompting.control.PromptTemplate;
+import lm.tools.control.SchemaToGbnf;
+import lm.tools.control.ToolCallParser;
+import lm.tools.control.ToolCatalogue;
 
 public final class MessagesHandler implements HttpHandler {
 
@@ -58,14 +61,12 @@ public final class MessagesHandler implements HttpHandler {
         for (var t : req.turns()) {
             alternating.add(t.text());
         }
-        var prompt = PromptTemplate.mistralChat(req.system(), alternating);
-        var cfg = new GenerationConfig(
-                req.maxTokens(),
-                req.temperature(),
-                GenerationConfig.defaults().topP(),
-                GenerationConfig.defaults().topK(),
-                GenerationConfig.defaults().minP(),
-                System.nanoTime());
+        var system = ToolCatalogue.renderSystemPrelude(req.system(), req.tools());
+        var prompt = PromptTemplate.mistralChat(system, alternating);
+        var cfg = baseConfig(req);
+        if (!req.tools().isEmpty()) {
+            cfg = cfg.withGrammar(SchemaToGbnf.compile(req.tools()));
+        }
 
         var text = new StringBuilder();
         var emitted = new long[1];
@@ -77,22 +78,47 @@ public final class MessagesHandler implements HttpHandler {
                 });
             }
         }
-        var stopReason = emitted[0] >= req.maxTokens() ? "max_tokens" : "end_turn";
-        var inputTokens = estimateTokens(prompt);
+
+        var parsed = ToolCallParser.parse(text.toString());
+        var content = new JSONArray();
+        String stopReason;
+        if (parsed instanceof ToolCallParser.Call call) {
+            content.put(new JSONObject()
+                    .put("type", "tool_use")
+                    .put("id", call.toolCall().id())
+                    .put("name", call.toolCall().name())
+                    .put("input", call.toolCall().input()));
+            stopReason = "tool_use";
+        } else {
+            var textValue = parsed instanceof ToolCallParser.Text txt ? txt.text() : text.toString();
+            content.put(new JSONObject().put("type", "text").put("text", textValue));
+            stopReason = emitted[0] >= req.maxTokens() ? "max_tokens" : "end_turn";
+        }
+
         return new JSONObject()
                 .put("id", "msg_" + System.nanoTime())
                 .put("type", "message")
                 .put("role", "assistant")
                 .put("model", "lightmetal")
-                .put("content", new JSONArray()
-                        .put(new JSONObject().put("type", "text").put("text", text.toString())))
+                .put("content", content)
                 .put("stop_reason", stopReason)
                 .put("stop_sequence", JSONObject.NULL)
                 .put("usage", new JSONObject()
-                        .put("input_tokens", inputTokens)
+                        .put("input_tokens", estimateTokens(prompt))
                         .put("output_tokens", (int) emitted[0])
                         .put("cache_read_input_tokens", 0)
                         .put("cache_creation_input_tokens", 0));
+    }
+
+    static GenerationConfig baseConfig(MessagesRequest req) {
+        var d = GenerationConfig.defaults();
+        return new GenerationConfig(
+                req.maxTokens(),
+                req.temperature(),
+                d.topP(),
+                d.topK(),
+                d.minP(),
+                System.nanoTime());
     }
 
     static int estimateTokens(String prompt) {
