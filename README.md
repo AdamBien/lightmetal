@@ -71,6 +71,23 @@ GGUF wins. Response shape matches Anthropic's `{id, content[…], stop_reason,
 usage}` so existing clients (e.g. [zsmith](https://github.com/AdamBien/zsmith))
 only need a base URL switch.
 
+### OpenAI-compatible endpoints
+
+For tools that speak the OpenAI Chat Completions protocol (Continue, Aider,
+Open WebUI, LangChain defaults, etc.), the same server also exposes
+`POST /v1/chat/completions` and `GET /v1/models`. The `model` field is
+accepted and ignored — the loaded GGUF wins, exactly as with `/v1/messages`.
+
+```
+curl -s http://localhost:8080/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"lightmetal","messages":[{"role":"user","content":"say hi"}],"max_tokens":64}'
+```
+
+Streaming (`stream: true`) is not yet supported and returns HTTP 400.
+`tools` are mapped onto the existing Mistral tool pipeline and surface
+in the response as standard OpenAI `tool_calls`.
+
 ## Architecture
 
 ```mermaid

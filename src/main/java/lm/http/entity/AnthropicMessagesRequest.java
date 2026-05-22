@@ -10,7 +10,7 @@ import lm.configuration.entity.GenerationConfig;
 import lm.tools.entity.Tool;
 import lm.tools.entity.ToolCall;
 
-public record MessagesRequest(
+public record AnthropicMessagesRequest(
         String system,
         List<Turn> turns,
         List<Tool> tools,
@@ -24,7 +24,7 @@ public record MessagesRequest(
     public record UserToolResults(List<ToolResult> results) implements Turn {}
     public record ToolResult(String callId, String content) {}
 
-    public static MessagesRequest from(JSONObject root, GenerationConfig defaults) {
+    public static AnthropicMessagesRequest from(JSONObject root, GenerationConfig defaults) {
         var system = root.optString("system", "");
         var maxTokens = root.optInt("max_tokens", defaults.maxTokens());
         var temperature = (float) root.optDouble("temperature", defaults.temperature());
@@ -45,7 +45,7 @@ public record MessagesRequest(
         if (turns.isEmpty()) {
             throw new IllegalArgumentException("messages contain no usable content");
         }
-        return new MessagesRequest(system, turns, tools, maxTokens, temperature);
+        return new AnthropicMessagesRequest(system, turns, tools, maxTokens, temperature);
     }
 
     static List<Turn> turnsFrom(String role, Object content) {

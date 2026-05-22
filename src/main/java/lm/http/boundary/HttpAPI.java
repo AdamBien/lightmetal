@@ -8,7 +8,9 @@ import java.util.concurrent.Executors;
 import com.sun.net.httpserver.HttpServer;
 
 import lm.generation.boundary.LightMetal;
+import lm.http.control.ChatCompletionsHandler;
 import lm.http.control.MessagesHandler;
+import lm.http.control.ModelsHandler;
 
 public final class HttpAPI implements AutoCloseable {
 
@@ -29,6 +31,8 @@ public final class HttpAPI implements AutoCloseable {
                 return t;
             });
             server.createContext("/v1/messages", new MessagesHandler(lm));
+            server.createContext("/v1/chat/completions", new ChatCompletionsHandler(lm));
+            server.createContext("/v1/models", new ModelsHandler());
             server.setExecutor(executor);
             server.start();
             return new HttpAPI(server, executor);

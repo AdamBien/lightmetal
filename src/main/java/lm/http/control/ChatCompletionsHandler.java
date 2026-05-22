@@ -17,16 +17,17 @@ import lm.generation.boundary.LightMetal;
 import lm.http.entity.AnthropicMessagesRequest;
 import lm.http.entity.AnthropicMessagesRequest.AssistantText;
 import lm.http.entity.AnthropicMessagesRequest.UserText;
+import lm.http.entity.OpenAIChatRequest;
 import lm.logging.control.Log;
 import lm.prompting.control.PromptTemplate;
 import lm.tools.control.ToolCallParser;
 
-public final class MessagesHandler implements HttpHandler {
+public final class ChatCompletionsHandler implements HttpHandler {
 
     private final LightMetal lm;
     private final String template;
 
-    public MessagesHandler(LightMetal lm) {
+    public ChatCompletionsHandler(LightMetal lm) {
         this.lm = lm;
         this.template = ZCfg.string("template", "mistral4");
     }
@@ -48,10 +49,23 @@ public final class MessagesHandler implements HttpHandler {
             try (InputStream in = exchange.getRequestBody()) {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
-            AnthropicMessagesRequest req;
+            JSONObject root;
             try {
-                var root = new JSONObject(new JSONTokener(body));
-                req = AnthropicMessagesRequest.from(root, GenerationConfig.defaults());
+                root = new JSONObject(new JSONTokener(body));
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                status = 400;
+                writeError(exchange, status, "invalid_request_error", "malformed JSON: " + e.getMessage());
+                return;
+            }
+            if (root.optBoolean("stream", false)) {
+                status = 400;
+                writeError(exchange, status, "invalid_request_error",
+                        "streaming is not supported yet; set stream:false or omit it");
+                return;
+            }
+            OpenAIChatRequest req;
+            try {
+                req = OpenAIChatRequest.from(root, GenerationConfig.defaults());
             } catch (IllegalArgumentException e) {
                 status = 400;
                 writeError(exchange, status, "invalid_request_error", e.getMessage());
@@ -71,8 +85,9 @@ public final class MessagesHandler implements HttpHandler {
         }
     }
 
-    JSONObject generate(AnthropicMessagesRequest req) {
-        var prompt = buildPrompt(req);
+    JSONObject generate(OpenAIChatRequest req) {
+        var msgReq = req.toAnthropicMessagesRequest();
+        var prompt = buildPrompt(msgReq);
         var cfg = baseConfig(req);
         Log.debug("[prompt template=" + template + "]\n" + prompt + "\n[/prompt]");
 
@@ -89,39 +104,45 @@ public final class MessagesHandler implements HttpHandler {
         }
 
         var parsed = ToolCallParser.parse(raw.toString());
-        var content = new JSONArray();
-        String stopReason;
+        var message = new JSONObject().put("role", "assistant");
+        String finishReason;
         if (parsed instanceof ToolCallParser.Calls calls) {
-            if (!calls.leadingText().isBlank()) {
-                content.put(new JSONObject().put("type", "text").put("text", calls.leadingText()));
-            }
+            var leading = calls.leadingText();
+            message.put("content", leading.isBlank() ? JSONObject.NULL : leading);
+            var toolCalls = new JSONArray();
             for (var call : calls.calls()) {
-                content.put(new JSONObject()
-                        .put("type", "tool_use")
+                toolCalls.put(new JSONObject()
                         .put("id", call.id())
-                        .put("name", call.name())
-                        .put("input", call.input()));
+                        .put("type", "function")
+                        .put("function", new JSONObject()
+                                .put("name", call.name())
+                                .put("arguments", call.input().toString())));
             }
-            stopReason = "tool_use";
+            message.put("tool_calls", toolCalls);
+            finishReason = "tool_calls";
         } else {
             var text = parsed instanceof ToolCallParser.Text txt ? txt.text() : raw.toString();
-            content.put(new JSONObject().put("type", "text").put("text", text));
-            stopReason = emitted[0] >= req.maxTokens() ? "max_tokens" : "end_turn";
+            message.put("content", text);
+            finishReason = emitted[0] >= req.maxTokens() ? "length" : "stop";
         }
 
+        var choice = new JSONObject()
+                .put("index", 0)
+                .put("message", message)
+                .put("finish_reason", finishReason);
+
+        var promptTokens = estimateTokens(prompt);
+        var completionTokens = (int) emitted[0];
         return new JSONObject()
-                .put("id", "msg_" + System.nanoTime())
-                .put("type", "message")
-                .put("role", "assistant")
+                .put("id", "chatcmpl-" + System.nanoTime())
+                .put("object", "chat.completion")
+                .put("created", System.currentTimeMillis() / 1000L)
                 .put("model", "lightmetal")
-                .put("content", content)
-                .put("stop_reason", stopReason)
-                .put("stop_sequence", JSONObject.NULL)
+                .put("choices", new JSONArray().put(choice))
                 .put("usage", new JSONObject()
-                        .put("input_tokens", estimateTokens(prompt))
-                        .put("output_tokens", (int) emitted[0])
-                        .put("cache_read_input_tokens", 0)
-                        .put("cache_creation_input_tokens", 0));
+                        .put("prompt_tokens", promptTokens)
+                        .put("completion_tokens", completionTokens)
+                        .put("total_tokens", promptTokens + completionTokens));
     }
 
     String buildPrompt(AnthropicMessagesRequest req) {
@@ -143,7 +164,7 @@ public final class MessagesHandler implements HttpHandler {
         return out;
     }
 
-    static GenerationConfig baseConfig(AnthropicMessagesRequest req) {
+    static GenerationConfig baseConfig(OpenAIChatRequest req) {
         var d = GenerationConfig.defaults();
         return new GenerationConfig(
                 req.maxTokens(),
@@ -165,8 +186,11 @@ public final class MessagesHandler implements HttpHandler {
 
     static void writeError(HttpExchange exchange, int status, String type, String message) throws IOException {
         var body = new JSONObject()
-                .put("type", "error")
-                .put("error", new JSONObject().put("type", type).put("message", message))
+                .put("error", new JSONObject()
+                        .put("type", type)
+                        .put("message", message)
+                        .put("code", JSONObject.NULL)
+                        .put("param", JSONObject.NULL))
                 .toString();
         write(exchange, status, body);
     }

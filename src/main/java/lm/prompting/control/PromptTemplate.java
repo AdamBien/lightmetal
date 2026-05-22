@@ -6,11 +6,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import lm.configuration.control.ZCfg;
-import lm.http.entity.MessagesRequest.AssistantText;
-import lm.http.entity.MessagesRequest.AssistantToolCalls;
-import lm.http.entity.MessagesRequest.Turn;
-import lm.http.entity.MessagesRequest.UserText;
-import lm.http.entity.MessagesRequest.UserToolResults;
+import lm.http.entity.AnthropicMessagesRequest.AssistantText;
+import lm.http.entity.AnthropicMessagesRequest.AssistantToolCalls;
+import lm.http.entity.AnthropicMessagesRequest.Turn;
+import lm.http.entity.AnthropicMessagesRequest.UserText;
+import lm.http.entity.AnthropicMessagesRequest.UserToolResults;
 import lm.tools.entity.Tool;
 
 public interface PromptTemplate {
