@@ -5,6 +5,7 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import lm.configuration.control.ZCfg;
 import lm.http.entity.MessagesRequest.AssistantText;
 import lm.http.entity.MessagesRequest.AssistantToolCalls;
 import lm.http.entity.MessagesRequest.Turn;
@@ -14,7 +15,10 @@ import lm.tools.entity.Tool;
 
 public interface PromptTemplate {
 
-    String MODEL_SETTINGS = "[MODEL_SETTINGS]{\"reasoning_effort\": \"none\"}[/MODEL_SETTINGS]";
+    static String modelSettings() {
+        var effort = ZCfg.string("mistral4.reasoning_effort", "none");
+        return "[MODEL_SETTINGS]{\"reasoning_effort\": \"" + effort + "\"}[/MODEL_SETTINGS]";
+    }
 
     static String mistralInstruct(String userPrompt) {
         return "[INST] " + userPrompt + " [/INST]";
@@ -46,7 +50,7 @@ public interface PromptTemplate {
         if (!tools.isEmpty()) {
             sb.append("[AVAILABLE_TOOLS]").append(mistralToolsJson(tools)).append("[/AVAILABLE_TOOLS]");
         }
-        sb.append(MODEL_SETTINGS);
+        sb.append(modelSettings());
         for (var turn : turns) {
             appendTurn(sb, turn);
         }
