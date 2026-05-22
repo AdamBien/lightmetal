@@ -33,9 +33,15 @@ public final class MessagesHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        var startNanos = System.nanoTime();
+        var method = exchange.getRequestMethod();
+        var uri = exchange.getRequestURI();
+        Log.http("--> " + method + " " + uri + " from " + exchange.getRemoteAddress());
+        var status = 0;
         try (exchange) {
-            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                writeError(exchange, 405, "method_not_allowed", "use POST");
+            if (!"POST".equalsIgnoreCase(method)) {
+                status = 405;
+                writeError(exchange, status, "method_not_allowed", "use POST");
                 return;
             }
             String body;
@@ -47,15 +53,21 @@ public final class MessagesHandler implements HttpHandler {
                 var root = new JSONObject(new JSONTokener(body));
                 req = MessagesRequest.from(root, GenerationConfig.defaults());
             } catch (IllegalArgumentException e) {
-                writeError(exchange, 400, "invalid_request_error", e.getMessage());
+                status = 400;
+                writeError(exchange, status, "invalid_request_error", e.getMessage());
                 return;
             }
             try {
                 writeOk(exchange, generate(req));
+                status = 200;
             } catch (RuntimeException e) {
+                status = 500;
                 Log.error("request failed", e);
-                writeError(exchange, 500, "api_error", e.getMessage());
+                writeError(exchange, status, "api_error", e.getMessage());
             }
+        } finally {
+            var ms = (System.nanoTime() - startNanos) / 1_000_000;
+            Log.http("<-- " + method + " " + uri + " " + status + " (" + ms + " ms)");
         }
     }
 

@@ -7,7 +7,8 @@ public enum Log {
     ERROR(Color.RED, System.err),
     SYSTEM(Color.BLUE, System.out),
     DEBUG(Color.VIOLET, System.out),
-    SUCCESS(Color.MAGENTA, System.out);
+    SUCCESS(Color.MAGENTA, System.out),
+    HTTP(Color.CYAN, System.out);
 
     private final PrintStream out;
     private final String value;
@@ -17,7 +18,8 @@ public enum Log {
         RED("[38;2;220;50;47m"),
         MAGENTA("[38;2;211;54;130m"),
         VIOLET("[38;2;108;113;196m"),
-        BLUE("[38;2;38;139;210m");
+        BLUE("[38;2;38;139;210m"),
+        CYAN("[38;2;42;161;152m");
 
         final String code;
 
@@ -58,5 +60,9 @@ public enum Log {
 
     public static void success(String message) {
         Log.SUCCESS.out(message);
+    }
+
+    public static void http(String message) {
+        Log.HTTP.out(message);
     }
 }
