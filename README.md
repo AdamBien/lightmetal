@@ -25,17 +25,11 @@ java --enable-native-access=ALL-UNNAMED -jar zbo/lightmetal.jar \
 Options: `-max-tokens`, `-temperature`, `-top-p`, `-top-k`, `-min-p`, `-seed`,
 `-serve`, `-port`, `-help`.
 
-With every parameter set in `~/.lightmetal/app.properties`:
+The only mandatory property is `model`. With it set in
+`~/.lightmetal/app.properties`:
 
 ```properties
 model=/Users/duke/Downloads/Mistral-Medium-3.5-128B-UD-Q5_K_XL-00001-of-00003.gguf
-max-tokens=256
-temperature=0.7
-top-p=0.9
-top-k=40
-min-p=0.05
-context.length=32768
-context.batch.size=2048
 ```
 
 the invocation collapses to just the prompt (CLI flags still override any
@@ -45,6 +39,8 @@ property):
 java --enable-native-access=ALL-UNNAMED -jar zbo/lightmetal.jar \
      -prompt "What is Java?"
 ```
+
+See [Configuration](#configuration) for the full property reference.
 
 ## HTTP API
 
@@ -108,11 +104,70 @@ flowchart TD
 `libllama.dylib` discovery falls back to `brew --prefix llama.cpp`; override
 with the `LIGHTMETAL_LIB` environment variable.
 
-KV cache and batching are tunable via `app.properties`:
+### Minimal configuration
+
+Only `model` is mandatory. Everything else has a default, and `template` plus
+`context.length` are auto-derived from the GGUF when not set explicitly.
+
+```properties
+model=/path/to/your.gguf
+```
+
+Properties are looked up in this order (later wins):
+
+1. Hardcoded defaults
+2. GGUF metadata (for `template` and `context.length`)
+3. `~/.lightmetal/app.properties` (global)
+4. `./app.properties` (project-local)
+5. `-Dproperty=value` JVM system properties
+6. CLI flags (`-model`, `-prompt`, `-max-tokens`, …)
+
+### Required
+
+| Property | CLI flag | Effect |
+|---|---|---|
+| `model` | `-model` | Absolute path to a GGUF file. Required unless passed on the CLI. |
+
+### Generation
+
+All optional — defaults shown.
+
+| Property | CLI flag | Default | Effect |
+|---|---|---|---|
+| `prompt` | `-prompt` | — | One-shot user prompt. Required unless `-serve`. |
+| `max-tokens` | `-max-tokens` | `256` | Max tokens to generate per request. |
+| `temperature` | `-temperature` | `0.7` | Sampling temperature. |
+| `top-p` | `-top-p` | `0.9` | Nucleus sampling cutoff. |
+| `top-k` | `-top-k` | `40` | Top-k sampling cutoff. |
+| `min-p` | `-min-p` | `0.05` | Min-p sampling cutoff. |
+| `seed` | `-seed` | `nanoTime()` | RNG seed. |
+
+### HTTP server
+
+| Property | CLI flag | Default | Effect |
+|---|---|---|---|
+| `serve` | `-serve` | `false` | Start `/v1/messages` + `/v1/chat/completions` instead of one-shot generation. |
+| `port` | `-port` | `8080` | HTTP listen port. |
+
+### Chat template
 
 | Property | Default | Effect |
 |---|---|---|
-| `context.length` | 32768 | KV cache size in tokens. Memory scales linearly. |
-| `context.batch.size` | 2048 | `n_ubatch` — physical decode chunk size. |
-| `context.gpu.layers` | -1 | Layers offloaded to Metal; `-1` = all. |
-| `context.seed` | 0 | Context seed. |
+| `template` | auto-detected from `tokenizer.chat_template` | Active chat template. Currently `mistral4` or `gemma4`. Override if auto-detection picks the wrong one. |
+| `mistral4.reasoning_effort` | `none` | Value emitted in the `[MODEL_SETTINGS]{"reasoning_effort":"…"}` block. Typical: `none`, `low`, `medium`, `high`. |
+| `gemma4.enable_thinking` | `false` | When `true`, leaves the `<\|channel>thought` block open so the model emits reasoning before its answer (stripped from history on subsequent turns). |
+
+### Context / KV cache
+
+| Property | Default | Effect |
+|---|---|---|
+| `context.length` | `<arch>.context_length` from GGUF (e.g. 262144 for gemma-4), falls back to `32768` | KV cache size in tokens. Memory scales linearly. |
+| `context.batch.size` | `2048` | `n_ubatch` — physical decode chunk size. |
+| `context.gpu.layers` | `-1` | Layers offloaded to Metal; `-1` = all. |
+| `context.seed` | `0` | Context seed. |
+
+### Environment variables
+
+| Variable | Effect |
+|---|---|
+| `LIGHTMETAL_LIB` | Absolute path to `libllama.dylib`. Overrides the `brew --prefix llama.cpp` fallback. |
