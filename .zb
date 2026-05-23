@@ -4,6 +4,6 @@ classes.dir=<temp.dir>
 jar.dir=zbo/
 jar.file.name=lightmetal.jar
 main.class=<discovered by zb>
-post.build.hook=<none>
+post.build.hook=zunit
 resources.dir=<discovered by zb>
 sources.dir=<discovered by zb>
