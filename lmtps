@@ -1,0 +1,56 @@
+#!/usr/bin/env -S java --source 25 -cp ./zbo/lightmetal.jar
+
+import lm.configuration.control.ZCfg;
+import lm.configuration.entity.GenerationConfig;
+import lm.generation.boundary.LightMetal;
+import lm.generation.entity.Tps;
+
+String name = MethodHandles.lookup().lookupClass().getName();
+String version = "2026-05-25.1";
+String defaultPrompt = "What is Java?";
+
+void main(String... args) throws Exception {
+    if (args.length > 0 && args[0].equals("-help")) {
+        IO.println("""
+                Usage: %s [prompt]
+                  prompt    text to send to the model (default: "%s")
+                  -help     Show this help
+                  -version  Show version
+                """.formatted(name, defaultPrompt));
+        return;
+    }
+    if (args.length > 0 && args[0].equals("-version")) {
+        IO.println(name + " " + version);
+        return;
+    }
+
+    var prompt = args.length > 0 ? String.join(" ", args) : defaultPrompt;
+
+    ZCfg.load("lightmetal");
+    var modelPath = ZCfg.string("model");
+    if (modelPath == null || !Files.exists(Path.of(modelPath))) {
+        System.err.println(name + ": no usable model configured (model=" + modelPath + ")");
+        System.exit(1);
+    }
+
+    var count = new long[1];
+    var firstTokenNanos = new long[1];
+
+    try (var lm = LightMetal.load(Path.of(modelPath));
+         var stream = lm.generate(prompt, GenerationConfig.defaults())) {
+        stream.forEach(t -> {
+            if (firstTokenNanos[0] == 0L) firstTokenNanos[0] = System.nanoTime();
+            count[0]++;
+            IO.print(t.text());
+            System.out.flush();
+        });
+    }
+    IO.println("");
+
+    if (count[0] < 2) {
+        System.err.println(name + ": got " + count[0] + " tokens, need at least 2 for tps");
+        System.exit(1);
+    }
+
+    IO.println("[" + Tps.measure(count[0], firstTokenNanos[0]) + "]");
+}
