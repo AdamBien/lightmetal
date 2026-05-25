@@ -36,21 +36,23 @@ void main(String... args) throws Exception {
     var count = new long[1];
     var firstTokenNanos = new long[1];
 
-    try (var lm = LightMetal.load(Path.of(modelPath));
-         var stream = lm.generate(prompt, GenerationConfig.defaults())) {
-        stream.forEach(t -> {
-            if (firstTokenNanos[0] == 0L) firstTokenNanos[0] = System.nanoTime();
-            count[0]++;
-            IO.print(t.text());
-            System.out.flush();
-        });
-    }
-    IO.println("");
+    try (var lm = LightMetal.load(Path.of(modelPath))) {
+        var modelName = lm.metadata().name().orElse(Path.of(modelPath).getFileName().toString());
+        try (var stream = lm.generate(prompt, GenerationConfig.defaults())) {
+            stream.forEach(t -> {
+                if (firstTokenNanos[0] == 0L) firstTokenNanos[0] = System.nanoTime();
+                count[0]++;
+                IO.print(t.text());
+                System.out.flush();
+            });
+        }
+        IO.println("");
 
-    if (count[0] < 2) {
-        System.err.println(name + ": got " + count[0] + " tokens, need at least 2 for tps");
-        System.exit(1);
-    }
+        if (count[0] < 2) {
+            System.err.println(name + ": got " + count[0] + " tokens, need at least 2 for tps");
+            System.exit(1);
+        }
 
-    IO.println("[" + Tps.measure(count[0], firstTokenNanos[0]) + "]");
+        IO.println("[" + modelName + ": " + Tps.measure(count[0], firstTokenNanos[0]) + "]");
+    }
 }
