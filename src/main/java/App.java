@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
 import lm.generation.boundary.LightMetal;
+import lm.generation.entity.Tps;
 import lm.http.boundary.HttpAPI;
 import lm.logging.control.Log;
 
@@ -40,11 +41,8 @@ void main(String... args) {
         }
     }
     IO.println("");
-    if (count[0] > 1) {
-        var seconds = (System.nanoTime() - startNanos[0]) / 1_000_000_000.0;
-        Log.system("[%d tokens, %.1f s, %.1f tok/s]".formatted(
-                count[0], seconds, (count[0] - 1) / seconds));
-    }
+    if (count[0] > 1)
+        Log.system("[" + Tps.measure(count[0], startNanos[0]) + "]");
 }
 
 void runServer(Args parsed) {
