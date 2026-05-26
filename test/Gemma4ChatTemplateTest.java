@@ -12,6 +12,7 @@ import lm.http.entity.AnthropicMessagesRequest.UserText;
 import lm.http.entity.AnthropicMessagesRequest.UserToolResults;
 import lm.prompting.control.ChatTemplate;
 import lm.prompting.control.GemmaChatTemplate;
+import lm.prompting.control.ModelFamily;
 import lm.tools.control.ToolCallParser;
 import lm.tools.entity.Tool;
 import lm.tools.entity.ToolCall;
@@ -19,9 +20,9 @@ import lm.tools.entity.ToolCall;
 void main() {
     ZCfg.load("lightmetal-tests-no-such-file");
 
-    var tpl = ChatTemplate.of("gemma4");
+    var tpl = ModelFamily.GEMMA_4.template();
     if (!(tpl instanceof GemmaChatTemplate))
-        throw new AssertionError("ChatTemplate.of(\"gemma4\") returned " + tpl.getClass());
+        throw new AssertionError("ModelFamily.GEMMA_4.template() returned " + tpl.getClass());
 
     testPlainChatGenerationPromptShape(tpl);
     testSystemBlockEmittedWhenSystemPresent(tpl);

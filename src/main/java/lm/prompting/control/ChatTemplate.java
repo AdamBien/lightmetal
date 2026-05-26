@@ -15,11 +15,4 @@ public sealed interface ChatTemplate permits Mistral4ChatTemplate, GemmaChatTemp
     default List<String> stopSequences() {
         return List.of();
     }
-
-    static ChatTemplate of(String name) {
-        return switch (name) {
-            case "gemma4" -> new GemmaChatTemplate();
-            default -> new Mistral4ChatTemplate();
-        };
-    }
 }

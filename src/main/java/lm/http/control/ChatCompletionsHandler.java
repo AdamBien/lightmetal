@@ -19,7 +19,10 @@ import lm.http.entity.AnthropicMessagesRequest.AssistantText;
 import lm.http.entity.AnthropicMessagesRequest.UserText;
 import lm.http.entity.OpenAIChatRequest;
 import lm.logging.control.Log;
+import lm.inspection.entity.GGUFMetadata;
 import lm.prompting.control.ChatTemplate;
+import lm.prompting.control.Mistral4ChatTemplate;
+import lm.prompting.control.ModelFamily;
 import lm.prompting.control.PromptTemplate;
 import lm.tools.control.ToolCallParser;
 
@@ -31,10 +34,30 @@ public final class ChatCompletionsHandler implements HttpHandler {
 
     public ChatCompletionsHandler(LightMetal lm) {
         this.lm = lm;
-        var defaultTemplate = lm.metadata().detectTemplate().orElse("mistral4");
-        this.template = ZCfg.string("template", defaultTemplate);
-        this.chatTemplate = ChatTemplate.of(this.template);
+        var override = ZCfg.string("template", "");
+        if (isLegacyBasic(override)) {
+            this.template = override;
+            this.chatTemplate = new Mistral4ChatTemplate();
+        } else {
+            var family = resolveFamily(lm.metadata(), override);
+            this.template = family.name();
+            this.chatTemplate = family.template();
+        }
         Log.system("[template=" + this.template + "]");
+    }
+
+    private static boolean isLegacyBasic(String override) {
+        return "v0.3".equals(override) || "v3".equals(override) || "basic".equals(override);
+    }
+
+    private static ModelFamily resolveFamily(GGUFMetadata metadata, String override) {
+        if (!override.isBlank()) {
+            return ModelFamily.valueOf(override);
+        }
+        return ModelFamily.from(metadata)
+                .orElseThrow(() -> new IllegalStateException(
+                        "no ModelFamily entry for GGUF name=" + metadata.name().orElse("?")
+                                + " — add it to lm.prompting.control.ModelFamily"));
     }
 
     @Override

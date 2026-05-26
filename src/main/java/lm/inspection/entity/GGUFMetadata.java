@@ -60,14 +60,4 @@ public record GGUFMetadata(int version, long tensorCount, Map<String, Object> kv
     public Optional<Boolean> addBosToken() {
         return bool("tokenizer.ggml.add_bos_token");
     }
-
-    public Optional<String> detectTemplate() {
-        return chatTemplate().map(GGUFMetadata::fingerprintTemplate);
-    }
-
-    private static String fingerprintTemplate(String jinja) {
-        if (jinja.contains("<|turn>")) return "gemma4";
-        if (jinja.contains("[INST]")) return "mistral4";
-        return "mistral4";
-    }
 }

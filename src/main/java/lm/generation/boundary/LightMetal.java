@@ -11,7 +11,7 @@ import lm.http.entity.AnthropicMessagesRequest.UserText;
 import lm.inspection.boundary.Inspector;
 import lm.inspection.entity.GGUFMetadata;
 import lm.logging.control.Log;
-import lm.prompting.control.ChatTemplate;
+import lm.prompting.control.ModelFamily;
 
 public final class LightMetal implements AutoCloseable {
 
@@ -43,8 +43,12 @@ public final class LightMetal implements AutoCloseable {
     }
 
     public Stream<Token> generate(String userPrompt, GenerationConfig cfg) {
-        var name = metadata.detectTemplate().orElse("mistral4");
-        var rendered = ChatTemplate.of(name).render("", List.of(),
+        var template = ModelFamily.from(metadata)
+                .orElseThrow(() -> new IllegalStateException(
+                        "no ModelFamily entry for GGUF name=" + metadata.name().orElse("?")
+                                + " — add it to lm.prompting.control.ModelFamily"))
+                .template();
+        var rendered = template.render("", List.of(),
                 List.of(new UserText(userPrompt)));
         return complete(rendered, cfg);
     }

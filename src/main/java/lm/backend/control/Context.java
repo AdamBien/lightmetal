@@ -146,6 +146,7 @@ public final class Context implements AutoCloseable {
             }
             for (var s : stops) {
                 if (endsWith(tail, s)) {
+                    Log.debug("[stop] matched " + s + " after " + produced + " tokens");
                     stop();
                     return;
                 }

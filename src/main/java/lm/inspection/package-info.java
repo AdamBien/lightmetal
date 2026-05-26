@@ -50,21 +50,21 @@
 ///
 /// Anything else: `meta.get("any.key")` or `meta.kvs()`.
 ///
-/// ## Template fingerprinting
+/// ## Model→template binding
 ///
-/// [lm.inspection.entity.GGUFMetadata#detectTemplate()] inspects the Jinja
-/// string and returns a lightmetal template name (`"gemma4"` when the
-/// template contains `<|turn>`, `"mistral4"` when it contains `[INST]`,
-/// falling back to `"mistral4"`). Callers can use it as the default for
-/// `ZCfg.string("template", …)` so the right
-/// [lm.prompting.control.ChatTemplate] wins automatically.
+/// This BC stops at exposing raw metadata. The n:1 mapping of GGUF model
+/// files to [lm.prompting.control.ChatTemplate] implementations lives in
+/// [lm.prompting.control.ModelFamily]: each enum constant binds a `general.name`
+/// fragment to a `ChatTemplate` factory, several constants may share one
+/// factory, and `ModelFamily.from(metadata)` is the single resolution path.
+/// Unknown models fail loud — adding a new model is a one-line enum entry.
 ///
 /// ## Usage
 ///
 /// ```java
 /// var meta = Inspector.inspect(Path.of("/path/to/model.gguf"));
-/// var template = meta.detectTemplate().orElse("mistral4");
-/// var ctxLen   = meta.contextLength().orElse(32_768L);
+/// var family = ModelFamily.from(meta).orElseThrow();
+/// var ctxLen = meta.contextLength().orElse(32_768L);
 /// ```
 ///
 /// ## Why pure Java?
