@@ -1,0 +1,47 @@
+#!/usr/bin/env -S java --source 25 -cp ./zbo/lightmetal.jar
+
+import module java.base;
+
+import lm.configuration.control.ZCfg;
+import lm.inspection.boundary.Inspector;
+
+void main(String... args) {
+    ZCfg.load("lightmetal");
+    var modelPath = args.length > 0 ? args[0] : ZCfg.string("model");
+    if (modelPath == null || !Files.exists(Path.of(modelPath))) {
+        System.err.println("lmprobe: no model (pass path as arg or set model= in ~/.lightmetal/app.properties)");
+        System.exit(1);
+    }
+    var meta = Inspector.inspect(Path.of(modelPath));
+
+    IO.println("model: " + meta.name().orElse("?"));
+    IO.println("arch:  " + meta.architecture().orElse("?"));
+    IO.println("bos:   " + meta.bosTokenId().orElse(-1));
+    IO.println("eos:   " + meta.eosTokenId().orElse(-1));
+    IO.println("add_bos: " + meta.addBosToken().orElse(null));
+    IO.println();
+
+    var tokens = meta.kvs().get("tokenizer.ggml.tokens");
+    var tokenTypes = meta.kvs().get("tokenizer.ggml.token_type");
+    if (tokens instanceof Object[] arr) {
+        IO.println("tokens near 31 (vocab size " + arr.length + "):");
+        var types = tokenTypes instanceof Object[] t ? t : null;
+        for (var i = Math.max(0, 25); i < Math.min(arr.length, 40); i++) {
+            var typeStr = types != null && i < types.length ? " type=" + types[i] : "";
+            IO.println("  [" + i + "]" + typeStr + " " + arr[i]);
+        }
+    } else {
+        IO.println("tokenizer.ggml.tokens: " + (tokens == null ? "<absent>" : tokens.getClass()));
+    }
+    IO.println();
+
+    var jinja = meta.chatTemplate().orElse(null);
+    if (jinja == null) {
+        IO.println("tokenizer.chat_template: <absent>");
+    } else {
+        IO.println("tokenizer.chat_template (" + jinja.length() + " chars):");
+        IO.println("---");
+        IO.println(jinja);
+        IO.println("---");
+    }
+}
