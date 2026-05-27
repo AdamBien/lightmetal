@@ -90,17 +90,18 @@ void printUsage() {
 }
 
 Args parseArgs(String[] args) {
+    var d = GenerationConfig.defaults();
     var model = ZCfg.string("model");
     var prompt = ZCfg.string("prompt");
-    var maxTokens = ZCfg.integer("max-tokens", 256);
-    var temperature = Float.parseFloat(ZCfg.string("temperature", "0.7"));
-    var topP = Float.parseFloat(ZCfg.string("top-p", "0.9"));
-    var topK = ZCfg.integer("top-k", 40);
-    var minP = Float.parseFloat(ZCfg.string("min-p", "0.05"));
+    var maxTokens = ZCfg.integer("max-tokens", d.maxTokens());
+    var temperature = Float.parseFloat(ZCfg.string("temperature", String.valueOf(d.temperature())));
+    var topP = Float.parseFloat(ZCfg.string("top-p", String.valueOf(d.topP())));
+    var topK = ZCfg.integer("top-k", d.topK());
+    var minP = Float.parseFloat(ZCfg.string("min-p", String.valueOf(d.minP())));
     var seedCfg = ZCfg.string("seed");
     var seed = seedCfg != null ? Long.parseLong(seedCfg) : System.nanoTime();
-    var serve = ZCfg.bool("serve", false);
-    var port = ZCfg.integer("port", 8080);
+    var serve = ZCfg.bool("serve", (boolean) Arg.SERVE.defaultValue);
+    var port = ZCfg.integer("port", (int) Arg.PORT.defaultValue);
     var help = false;
     for (var i = 0; i < args.length; i++) {
         var raw = args[i];
@@ -149,26 +150,33 @@ record Args(
         boolean help) {}
 
 enum Arg {
-    HELP("-help", "show this help", true),
-    MODEL("-model", "path to GGUF model file", false),
-    PROMPT("-prompt", "user prompt text (omit with -serve)", false),
-    MAX_TOKENS("-max-tokens", "max tokens to generate (default: 256)", true),
-    TEMPERATURE("-temperature", "sampling temperature (default: 0.7)", true),
-    TOP_P("-top-p", "top-p nucleus sampling (default: 0.9)", true),
-    TOP_K("-top-k", "top-k sampling (default: 40)", true),
-    MIN_P("-min-p", "min-p sampling (default: 0.05)", true),
-    SEED("-seed", "RNG seed (default: nanoTime)", true),
-    SERVE("-serve", "start HTTP server at /v1/messages instead of one-shot", true),
-    PORT("-port", "HTTP port (default: 8080)", true);
+    HELP("-help", "show this help", true, null),
+    MODEL("-model", "path to GGUF model file", false, null),
+    PROMPT("-prompt", "user prompt text (omit with -serve)", false, null),
+    MAX_TOKENS("-max-tokens", "max tokens to generate", true,
+               GenerationConfig.defaults().maxTokens()),
+    TEMPERATURE("-temperature", "sampling temperature", true,
+                GenerationConfig.defaults().temperature()),
+    TOP_P("-top-p", "top-p nucleus sampling", true,
+          GenerationConfig.defaults().topP()),
+    TOP_K("-top-k", "top-k sampling", true,
+          GenerationConfig.defaults().topK()),
+    MIN_P("-min-p", "min-p sampling", true,
+          GenerationConfig.defaults().minP()),
+    SEED("-seed", "RNG seed (default: nanoTime)", true, null),
+    SERVE("-serve", "start HTTP server at /v1/messages instead of one-shot", true, false),
+    PORT("-port", "HTTP port", true, 8080);
 
     final String option;
     final String description;
     final boolean optional;
+    final Object defaultValue;
 
-    Arg(String option, String description, boolean optional) {
+    Arg(String option, String description, boolean optional, Object defaultValue) {
         this.option = option;
         this.description = description;
         this.optional = optional;
+        this.defaultValue = defaultValue;
     }
 
     boolean matches(String value) {
@@ -187,7 +195,10 @@ enum Arg {
 
     static String optionalUsage() {
         return Stream.of(values()).filter(a -> a.optional)
-                .map(a -> "  %-14s %s".formatted(a.option, a.description))
+                .map(a -> {
+                    var suffix = a.defaultValue != null ? " (default: %s)".formatted(a.defaultValue) : "";
+                    return "  %-14s %s%s".formatted(a.option, a.description, suffix);
+                })
                 .collect(Collectors.joining("\n"));
     }
 }
