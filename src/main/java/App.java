@@ -1,5 +1,6 @@
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -41,20 +42,20 @@ void runOneShot(Args parsed){
 
 void runOneShot(String model,String prompt,GenerationConfig cfg) {
    
-    var count = new long[1];
-    var startNanos = new long[1];
+    var count = new AtomicLong();
+    var startNanos = new AtomicLong();
     try (var lm = LightMetal.load(Path.of(model));
          var stream = lm.generate(prompt, cfg)) {
         stream.forEach(t -> {
-            if (startNanos[0] == 0L) startNanos[0] = System.nanoTime();
-            count[0]++;
+            startNanos.compareAndSet(0L, System.nanoTime());
+            count.incrementAndGet();
             IO.print(t.text());
             System.out.flush();
         });
     }
     IO.println("");
-    if (count[0] > 1)
-        Log.system("[" + Tps.measure(count[0], startNanos[0]) + "]");
+    if (count.get() > 1)
+        Log.system("[" + Tps.measure(count.get(), startNanos.get()) + "]");
 }
 
 void runServer(Args parsed) {
