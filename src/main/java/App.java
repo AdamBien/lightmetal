@@ -1,13 +1,12 @@
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
 import lm.generation.boundary.LightMetal;
-import lm.generation.entity.Tps;
+import lm.generation.boundary.OneShot;
 import lm.http.boundary.HttpAPI;
 import lm.logging.control.Log;
 import lm.version.control.Version;
@@ -27,35 +26,15 @@ void main(String... args) {
     runOneShot(parsed);
 }
 
-void runOneShot(Args parsed){
-     var cfg = new GenerationConfig(
+void runOneShot(Args parsed) {
+    var cfg = new GenerationConfig(
             parsed.maxTokens(),
             parsed.temperature(),
             parsed.topP(),
             parsed.topK(),
             parsed.minP(),
             parsed.seed());
-    var model = parsed.model();
-    var prompt = parsed.prompt();
-    this.runOneShot(model,prompt,cfg);
-}
-
-void runOneShot(String model,String prompt,GenerationConfig cfg) {
-   
-    var count = new AtomicLong();
-    var startNanos = new AtomicLong();
-    try (var lm = LightMetal.load(Path.of(model));
-         var stream = lm.generate(prompt, cfg)) {
-        stream.forEach(t -> {
-            startNanos.compareAndSet(0L, System.nanoTime());
-            count.incrementAndGet();
-            IO.print(t.text());
-            System.out.flush();
-        });
-    }
-    IO.println("");
-    if (count.get() > 1)
-        Log.system("[" + Tps.measure(count.get(), startNanos.get()) + "]");
+    OneShot.run(parsed.model(), parsed.prompt(), cfg);
 }
 
 void runServer(Args parsed) {
