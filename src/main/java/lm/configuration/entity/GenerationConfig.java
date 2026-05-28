@@ -25,7 +25,7 @@ public record GenerationConfig(
     }
 
     public static GenerationConfig defaults() {
-        return new GenerationConfig(256, 0.7f, 0.9f, 40, 0.05f, System.nanoTime(), null, List.of());
+        return new GenerationConfig(2048, 0.7f, 0.9f, 40, 0.05f, System.nanoTime(), null, List.of());
     }
 
     public GenerationConfig withGrammar(String grammar) {

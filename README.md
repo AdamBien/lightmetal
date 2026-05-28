@@ -166,7 +166,7 @@ All optional — defaults shown.
 | Property | CLI flag | Default | Effect |
 |---|---|---|---|
 | `prompt` | `-prompt` | — | One-shot user prompt. Required unless `-serve`. |
-| `max-tokens` | `-max-tokens` | `256` | Max tokens to generate per request. |
+| `max-tokens` | `-max-tokens` | `2048` | Max tokens to generate per request. |
 | `temperature` | `-temperature` | `0.7` | Sampling temperature. |
 | `top-p` | `-top-p` | `0.9` | Nucleus sampling cutoff. |
 | `top-k` | `-top-k` | `40` | Top-k sampling cutoff. |

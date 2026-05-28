@@ -19,6 +19,7 @@ public final class LightMetalProvider implements BinaryOperator<String> {
         var count = new AtomicLong();
         var startNanos = new AtomicLong();
         var modelPath = Path.of(model);
+        Log.system("[model loaded from %s]".formatted(modelPath.toString()));
         try (var lm = LightMetal.load(modelPath);
              var stream = lm.generate(prompt, config)) {
             stream.forEach(t -> {
