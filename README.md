@@ -84,17 +84,48 @@ Streaming (`stream: true`) is not yet supported and returns HTTP 400.
 `tools` are mapped onto the existing Mistral tool pipeline and surface
 in the response as standard OpenAI `tool_calls`.
 
+## Embed via SPI
+
+`lightmetal.jar` registers `lm.generation.boundary.LightMetalProvider` as a
+`java.util.function.BinaryOperator<String>` via `META-INF/services`. Hosts
+load it through `ServiceLoader` and invoke it without compiling against any
+lightmetal type — only the JAR on the runtime classpath is needed.
+
+```java
+import java.util.ServiceLoader;
+import java.util.function.BinaryOperator;
+
+var generator = ServiceLoader.load(BinaryOperator.class).iterator().next();
+var response  = generator.apply(
+        "/path/to/model.gguf",
+        "What is Java?");
+System.out.println(response);
+```
+
+`apply(model, prompt)` runs a complete one-shot generation with default
+sampling parameters and returns the full text. Each call loads and closes the
+GGUF, so this path suits sporadic invocations — long-lived hosts should run
+`-serve` and hit the HTTP API instead.
+
+The SPI descriptor lives under
+`META-INF/services/java.util.function.BinaryOperator`, a JDK-owned namespace.
+Hosts running multiple unrelated providers on the same classpath should filter
+by `instanceof lm.generation.boundary.LightMetalProvider` rather than relying
+on iteration order.
+
 ## Architecture
 
 ```mermaid
 flowchart TD
     CLI["lightmetal CLI<br/>App.java (Java 25)"]
     HTTP["lm.http.boundary.HttpAPI<br/>POST /v1/messages"]
+    SPI["lm.generation.boundary.LightMetalProvider<br/>ServiceLoader&lt;BinaryOperator&lt;String&gt;&gt;"]
     LM["lm.generation.boundary.LightMetal<br/>load · generate : Stream&lt;Token&gt;"]
     Model["lm.backend.control.Model<br/>FFM → libllama.dylib"]
     Context["lm.backend.control.Context<br/>tokenize · decode · sample"]
     CLI --> LM
     HTTP --> LM
+    SPI --> LM
     LM --> Model
     Model --> Context
 ```
