@@ -10,11 +10,11 @@ public final class LightMetalProvider implements BinaryOperator<String> {
 
     @Override
     public String apply(String model, String prompt) {
+        ZCfg.load("lightmetal");
         return run(model, prompt, GenerationConfig.fromProperties());
     }
 
     public String run(String model, String prompt, GenerationConfig config) {
-        ZCfg.load("lightmetal");
         var out = new StringBuilder();
         var count = new AtomicLong();
         var startNanos = new AtomicLong();
