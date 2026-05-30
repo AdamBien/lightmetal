@@ -23,6 +23,7 @@ void main() throws Exception {
     var modelPath = Path.of(modelPathString);
 
     var count = new AtomicLong();
+    var thoughtCount = new AtomicLong();
     var firstTokenNanos = new AtomicLong();
 
     try (var lm = LightMetal.load(modelPath)) {
@@ -31,6 +32,10 @@ void main() throws Exception {
             stream.forEach(t -> {
                 firstTokenNanos.compareAndSet(0L, System.nanoTime());
                 count.incrementAndGet();
+                if ("thought".equals(t.channel())) {
+                    thoughtCount.incrementAndGet();
+                    return;
+                }
                 IO.print(t.text());
                 System.out.flush();
             });
@@ -42,6 +47,7 @@ void main() throws Exception {
             System.exit(1);
         }
 
-        IO.println("[" + modelName + ": " + Tps.measure(count.get(), firstTokenNanos.get()) + "]");
+        var thought = thoughtCount.get() > 0 ? ", " + thoughtCount.get() + " thought" : "";
+        IO.println("[" + modelName + ": " + Tps.measure(count.get(), firstTokenNanos.get()) + thought + "]");
     }
 }
