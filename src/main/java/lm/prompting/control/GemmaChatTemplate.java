@@ -46,13 +46,11 @@ public final class GemmaChatTemplate implements ChatTemplate {
     public Stream<Token> tagChannels(Stream<Token> tokens) {
         return tokens.gather(Gatherer.<Token, ChannelFilter, Token>ofSequential(
                 ChannelFilter::new,
-                (filter, in, downstream) -> {
-                    for (var t : filter.consume(in)) if (!downstream.push(t)) return false;
+                (filter, in, down) -> {
+                    filter.consume(in).forEach(down::push);
                     return true;
                 },
-                (filter, downstream) -> {
-                    for (var t : filter.flush()) if (!downstream.push(t)) return;
-                }));
+                (filter, down) -> filter.flush().forEach(down::push)));
     }
 
     static final class ChannelFilter {
