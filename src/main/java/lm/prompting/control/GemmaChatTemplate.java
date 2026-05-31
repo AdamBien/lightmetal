@@ -2,6 +2,7 @@ package lm.prompting.control;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Gatherer;
 import java.util.stream.Stream;
 
 import org.json.JSONObject;
@@ -38,21 +39,30 @@ public final class GemmaChatTemplate implements ChatTemplate {
     // The gemma4 prefill (`<|channel>thought\n<channel|>`) starts the model inside
     // the thought channel, so streamed tokens are tagged "thought" until the model
     // emits `<channel|>` to switch to the answer channel ("final"). The marker may
-    // be split across token pieces — we buffer the trailing bytes that could be a
-    // partial match so the marker is detected even across token boundaries.
+    // be split across token pieces — the gatherer buffers the trailing bytes that
+    // could be a partial match so the marker is detected even across token
+    // boundaries, and its finisher flushes the leftover bytes when the stream ends.
     @Override
     public Stream<Token> tagChannels(Stream<Token> tokens) {
-        var filter = new ChannelFilter();
-        return tokens.flatMap(t -> filter.consume(t).stream())
-                .onClose(() -> { /* nothing to flush — partial marker bytes are discarded */ });
+        return tokens.gather(Gatherer.<Token, ChannelFilter, Token>ofSequential(
+                ChannelFilter::new,
+                (filter, in, downstream) -> {
+                    for (var t : filter.consume(in)) if (!downstream.push(t)) return false;
+                    return true;
+                },
+                (filter, downstream) -> {
+                    for (var t : filter.flush()) if (!downstream.push(t)) return;
+                }));
     }
 
     static final class ChannelFilter {
         private static final String CLOSE = PromptTemplate.GEMMA_CHANNEL_CLOSE;
         private final StringBuilder pending = new StringBuilder();
         private String channel = "thought";
+        private int lastId;
 
         List<Token> consume(Token in) {
+            lastId = in.id();
             pending.append(in.text());
             var out = new ArrayList<Token>();
             while (true) {
@@ -72,6 +82,13 @@ public final class GemmaChatTemplate implements ChatTemplate {
                 }
                 return out;
             }
+        }
+
+        List<Token> flush() {
+            if (pending.isEmpty()) return List.of();
+            var out = List.of(new Token(lastId, pending.toString(), channel));
+            pending.setLength(0);
+            return out;
         }
     }
 
