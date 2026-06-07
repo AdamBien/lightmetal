@@ -7,23 +7,10 @@ import lm.generation.boundary.LightMetal;
 import lm.generation.entity.Tps;
 
 String name = MethodHandles.lookup().lookupClass().getName();
-String version = "2026-06-07.1";
+String version = "2026-06-07.2";
 
 void main(String... args) throws Exception {
-    if (args.length > 0 && args[0].equals("-help")) {
-        IO.println("""
-                Usage: %s [model-fragment]
-                  model-fragment   case-insensitive partial match against GGUF files in models.directory
-                                   (omit to use the model= property from app.properties)
-                  -help            show this help
-                  -version         show version
-                """.formatted(name));
-        return;
-    }
-    if (args.length > 0 && args[0].equals("-version")) {
-        IO.println(name + " " + version);
-        return;
-    }
+    IO.println(name + " " + version);
     ZCfg.load("lightmetal");
     var fileName = args.length > 0 ? matchModel(args[0]) : ZCfg.string("model");
     if (fileName == null) {
@@ -35,7 +22,8 @@ void main(String... args) throws Exception {
         System.err.println(name + ": model not found at " + modelPath);
         System.exit(1);
     }
-    var prompt = System.console().readLine("prompt> ");
+    var label = fileName.replace(".gguf", "") + "> ";
+    var prompt = System.console().readLine(label);
     if (prompt == null || prompt.isBlank()) {
         System.err.println(name + ": empty prompt");
         System.exit(1);
