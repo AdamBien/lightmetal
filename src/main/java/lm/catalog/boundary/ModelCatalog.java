@@ -28,6 +28,13 @@ public interface ModelCatalog {
         }
     }
 
+    static List<String> search(String fragment) {
+        var lowerFragment = fragment.toLowerCase();
+        return list().stream()
+                .filter(name -> name.toLowerCase().contains(lowerFragment))
+                .toList();
+    }
+
     static boolean isModel(String name) {
         return name.toLowerCase().endsWith(EXTENSION);
     }
