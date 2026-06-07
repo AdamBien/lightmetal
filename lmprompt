@@ -7,16 +7,25 @@ import lm.generation.boundary.LightMetal;
 import lm.generation.entity.Tps;
 
 String name = MethodHandles.lookup().lookupClass().getName();
-String version = "2026-05-25.1";
+String version = "2026-06-07.1";
 
-void main() throws Exception {
-    ZCfg.load("lightmetal");
-    var prompt = System.console().readLine("prompt> ");
-    if (prompt == null || prompt.isBlank()) {
-        System.err.println(name + ": empty prompt");
-        System.exit(1);
+void main(String... args) throws Exception {
+    if (args.length > 0 && args[0].equals("-help")) {
+        IO.println("""
+                Usage: %s [model-fragment]
+                  model-fragment   case-insensitive partial match against GGUF files in models.directory
+                                   (omit to use the model= property from app.properties)
+                  -help            show this help
+                  -version         show version
+                """.formatted(name));
+        return;
     }
-    var fileName = ZCfg.string("model");
+    if (args.length > 0 && args[0].equals("-version")) {
+        IO.println(name + " " + version);
+        return;
+    }
+    ZCfg.load("lightmetal");
+    var fileName = args.length > 0 ? matchModel(args[0]) : ZCfg.string("model");
     if (fileName == null) {
         System.err.println(name + ": no model configured (set model=<file> in ~/.lightmetal/app.properties)");
         System.exit(1);
@@ -24,6 +33,11 @@ void main() throws Exception {
     var modelPath = ModelCatalog.resolve(fileName);
     if (!Files.exists(modelPath)) {
         System.err.println(name + ": model not found at " + modelPath);
+        System.exit(1);
+    }
+    var prompt = System.console().readLine("prompt> ");
+    if (prompt == null || prompt.isBlank()) {
+        System.err.println(name + ": empty prompt");
         System.exit(1);
     }
 
@@ -55,4 +69,19 @@ void main() throws Exception {
         var thought = thoughtCount.get() > 0 ? ", " + thoughtCount.get() + " thought" : "";
         IO.println("[" + modelName + ": " + Tps.measure(count.get(), firstTokenNanos.get()) + thought + "]");
     }
+}
+
+String matchModel(String fragment) {
+    var matches = ModelCatalog.search(fragment);
+    if (matches.size() == 1) {
+        return matches.getFirst();
+    }
+    if (matches.isEmpty()) {
+        System.err.println(name + ": no model matches \"" + fragment + "\"");
+    } else {
+        System.err.println(name + ": " + matches.size() + " models match \"" + fragment + "\":");
+        matches.forEach(m -> System.err.println("  " + m));
+    }
+    System.exit(1);
+    return null;
 }
