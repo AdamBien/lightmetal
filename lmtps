@@ -1,20 +1,22 @@
 #!/usr/bin/env -S java --source 25 -cp ./zbo/lightmetal.jar
 
 import lm.catalog.boundary.ModelCatalog;
+import lm.catalog.control.ModelsDirectory;
 import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
 import lm.generation.boundary.LightMetal;
 import lm.generation.entity.Tps;
 
 String name = MethodHandles.lookup().lookupClass().getName();
-String version = "2026-05-25.1";
+String version = "2026-06-08.1";
 String defaultPrompt = "What is Java?";
 
 void main(String... args) throws Exception {
     if (args.length > 0 && args[0].equals("-help")) {
         IO.println("""
-                Usage: %s [prompt]
+                Usage: %s [-all] [prompt]
                   prompt    text to send to the model (default: "%s")
+                  -all      measure TPS for every model in the catalog
                   -help     Show this help
                   -version  Show version
                 """.formatted(name, defaultPrompt));
@@ -25,23 +27,40 @@ void main(String... args) throws Exception {
         return;
     }
 
-    var prompt = args.length > 0 ? String.join(" ", args) : defaultPrompt;
-
     ZCfg.load("lightmetal");
+
+    var all = args.length > 0 && args[0].equals("-all");
+    var promptArgs = all ? Arrays.copyOfRange(args, 1, args.length) : args;
+    var prompt = promptArgs.length > 0 ? String.join(" ", promptArgs) : defaultPrompt;
+
+    if (all) {
+        var models = ModelCatalog.list();
+        if (models.isEmpty()) {
+            System.err.println(name + ": no models found in " + ModelsDirectory.path());
+            System.exit(1);
+        }
+        models.forEach(m -> measure(m, prompt));
+        return;
+    }
+
     var fileName = ZCfg.string("model");
     if (fileName == null) {
         System.err.println(name + ": no model configured (set model=<file> in ~/.lightmetal/app.properties)");
         System.exit(1);
     }
+    if (!measure(fileName, prompt)) {
+        System.exit(1);
+    }
+}
+
+boolean measure(String fileName, String prompt) {
     var modelPath = ModelCatalog.resolve(fileName);
     if (!Files.exists(modelPath)) {
         System.err.println(name + ": model not found at " + modelPath);
-        System.exit(1);
+        return false;
     }
-
     var count = new long[1];
     var firstTokenNanos = new long[1];
-
     try (var lm = LightMetal.load(modelPath)) {
         var modelName = lm.metadata().name().orElse(modelPath.getFileName().toString());
         try (var stream = lm.generate(prompt, GenerationConfig.defaults())) {
@@ -53,12 +72,11 @@ void main(String... args) throws Exception {
             });
         }
         IO.println("");
-
         if (count[0] < 2) {
-            System.err.println(name + ": got " + count[0] + " tokens, need at least 2 for tps");
-            System.exit(1);
+            System.err.println(name + ": " + modelName + ": got " + count[0] + " tokens, need at least 2 for tps");
+            return false;
         }
-
         IO.println("[" + modelName + ": " + Tps.measure(count[0], firstTokenNanos[0]) + "]");
     }
+    return true;
 }
