@@ -11,7 +11,6 @@ public record GenerationConfig(
         int topK,
         float minP,
         long seed,
-        String grammar,
         List<String> stopSequences) {
 
     public GenerationConfig {
@@ -19,15 +18,11 @@ public record GenerationConfig(
     }
 
     public GenerationConfig(int maxTokens, float temperature, float topP, int topK, float minP, long seed) {
-        this(maxTokens, temperature, topP, topK, minP, seed, null, List.of());
-    }
-
-    public GenerationConfig(int maxTokens, float temperature, float topP, int topK, float minP, long seed, String grammar) {
-        this(maxTokens, temperature, topP, topK, minP, seed, grammar, List.of());
+        this(maxTokens, temperature, topP, topK, minP, seed, List.of());
     }
 
     public static GenerationConfig defaults() {
-        return new GenerationConfig(2048, 0.7f, 0.9f, 40, 0.05f, System.nanoTime(), null, List.of());
+        return new GenerationConfig(2048, 0.7f, 0.9f, 40, 0.05f, System.nanoTime(), List.of());
     }
 
     public static GenerationConfig fromProperties() {
@@ -42,11 +37,7 @@ public record GenerationConfig(
                 seed != null ? Long.parseLong(seed) : d.seed());
     }
 
-    public GenerationConfig withGrammar(String grammar) {
-        return new GenerationConfig(maxTokens, temperature, topP, topK, minP, seed, grammar, stopSequences);
-    }
-
     public GenerationConfig withStopSequences(List<String> stops) {
-        return new GenerationConfig(maxTokens, temperature, topP, topK, minP, seed, grammar, stops);
+        return new GenerationConfig(maxTokens, temperature, topP, topK, minP, seed, stops);
     }
 }

@@ -112,8 +112,6 @@ public final class LightMetal implements AutoCloseable {
         var d = ContextParams.defaults();
         return new ContextParams(
                 ZCfg.integer("context.length", d.contextLength()),
-                ZCfg.integer("context.batch.size", d.batchSize()),
-                ZCfg.integer("context.gpu.layers", d.gpuLayers()),
-                ZCfg.integer("context.seed", (int) d.seed()));
+                ZCfg.integer("context.batch.size", d.batchSize()));
     }
 }
