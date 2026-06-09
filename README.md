@@ -10,16 +10,24 @@ Mistral Medium 3.5, Mistral Nemo, Devstral, Gemma 3, Gemma 4.
 ## Prerequisites
 
 - Java 25+
-- [`zb`](https://github.com/AdamBien/zb) on PATH
 - `brew install llama.cpp` (provides a Metal-enabled `libllama.dylib`)
-- `jextract` on PATH — only to regenerate FFM bindings; pre-generated bindings
-  are committed.
+- [`zb`](https://github.com/AdamBien/zb) on PATH — only to build from source;
+  prebuilt JARs are published on the [releases page](https://github.com/AdamBien/lightmetal/releases/latest).
 
 ## Build and Run
 
+Grab the latest `lightmetal.jar` from the
+[releases page](https://github.com/AdamBien/lightmetal/releases/latest), or
+build from source with `zb`:
+
 ```
-zb build
-java --enable-native-access=ALL-UNNAMED -jar zbo/lightmetal.jar \
+curl -LO https://github.com/AdamBien/lightmetal/releases/latest/download/lightmetal.jar
+# …or…
+zb build   # produces zbo/lightmetal.jar
+```
+
+```
+java --enable-native-access=ALL-UNNAMED -jar lightmetal.jar \
      -model ~/models/gemma-4-31B-it-UD-Q8_K_XL.gguf \
      -prompt "What is the relation between Sun Microsystems and Java"
 ```
@@ -156,6 +164,13 @@ flowchart TD
     LM --> Model
     Model --> Context
 ```
+
+### Regenerating FFM bindings
+
+The jextract output under `src/main/java/lm/backend/ffm/llama_h/` is committed,
+so a normal build needs no extra tooling. To regenerate against a newer
+`llama.h`, install [`jextract`](https://github.com/openjdk/jextract) and run
+[`src/main/scripts/jextract.sh`](src/main/scripts/jextract.sh).
 
 ## Configuration
 
