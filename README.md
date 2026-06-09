@@ -5,6 +5,8 @@ zero dependencies. Binds a Metal-enabled `libllama.dylib` through the Foreign
 Function & Memory API. Runs Mistral-architecture GGUF models such as Mistral
 Medium 3.5.
 
+![lightmetal](lightmetal.png)
+
 ## Prerequisites
 
 - Java 25+
