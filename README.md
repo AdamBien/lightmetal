@@ -25,6 +25,7 @@ script (shebang-launched, no `.java` extension, see the
 curl -fLO https://github.com/AdamBien/lightmetal/releases/latest/download/lminstall
 chmod +x lminstall
 ./lminstall
+chmod +x lm*
 ```
 
 Or fetch only the JAR, or build from source with `zb`:
@@ -138,11 +139,12 @@ on iteration order.
 ## Scripts
 
 The four scripts at the repository root are single-file Java 25 utilities
-(shebang-launched, no `.java` extension) that use `lightmetal.jar` directly off
-the classpath. `lminstall` puts them next to `./zbo/lightmetal.jar`; their
-shebangs reference that JAR relatively, so run them from the install directory.
-With `model=…` in `~/.lightmetal/app.properties` they share the same model
-resolution as the JAR.
+(shebang-launched, no `.java` extension, see the
+[AIrails.dev](https://airails.dev) `java-cli-script` skill) that use
+`lightmetal.jar` directly off the classpath. `lminstall` puts them next to
+`./zbo/lightmetal.jar`; their shebangs reference that JAR relatively, so run
+them from the install directory. With `model=…` in
+`~/.lightmetal/app.properties` they share the same model resolution as the JAR.
 
 | Script | What it does |
 |---|---|
