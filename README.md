@@ -16,7 +16,9 @@ Mistral Medium 3.5, Mistral Nemo, Devstral, Gemma 3, Gemma 4.
 
 ## Build and Run
 
-The fastest path is the `lminstall` script — it drops
+The fastest path is the [`lminstall`](lminstall) script — a single-file Java 25
+script (shebang-launched, no `.java` extension, see the
+[AIrails.dev](https://airails.dev) `java-cli-script` skill) that drops
 `zbo/lightmetal.jar` and the four `lm*` scripts into the current directory:
 
 ```
