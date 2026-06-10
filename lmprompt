@@ -7,7 +7,9 @@ import lm.generation.boundary.LightMetal;
 import lm.generation.entity.Tps;
 
 String name = MethodHandles.lookup().lookupClass().getName();
-String version = "2026-06-07.2";
+String version = "2026-06-10.1";
+String DIM = "\033[2m";
+String RESET = "\033[0m";
 
 void main(String... args) throws Exception {
     IO.println(name + " " + version);
@@ -35,12 +37,14 @@ void main(String... args) throws Exception {
 
     try (var lm = LightMetal.load(modelPath)) {
         var modelName = lm.metadata().name().orElse(modelPath.getFileName().toString());
-        try (var stream = lm.generate(prompt, GenerationConfig.defaults())) {
+        try (var stream = lm.generate(prompt, GenerationConfig.fromProperties())) {
             stream.forEach(t -> {
                 firstTokenNanos.compareAndSet(0L, System.nanoTime());
                 count.incrementAndGet();
                 if ("thought".equals(t.channel())) {
                     thoughtCount.incrementAndGet();
+                    System.err.print(DIM + t.text() + RESET);
+                    System.err.flush();
                     return;
                 }
                 IO.print(t.text());
