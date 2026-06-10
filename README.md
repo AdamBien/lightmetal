@@ -262,6 +262,7 @@ All optional — defaults shown.
 | Property | Default | Effect |
 |---|---|---|
 | `debug` | `false` | When `true`, dumps every GGUF kv pair at load (`[inspector]   key = …`) and logs each stop-sequence match (`[stop] matched …`). |
+| `progress` | `true` | Emits a cyan dot on stderr for each llama.cpp log tick during model load and inference. Set to `false` for clean output (e.g. when piping or benchmarking — `lmtps` disables it). |
 
 ### Environment variables
 

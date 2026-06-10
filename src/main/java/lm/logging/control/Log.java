@@ -81,9 +81,14 @@ public enum Log {
     }
 
     public static void progress() {
+        if (!isProgressEnabled()) return;
         progressActive = true;
         PROGRESS.out.print(PROGRESS.formatted("."));
         PROGRESS.out.flush();
+    }
+
+    public static boolean isProgressEnabled() {
+        return ZCfg.bool("progress", true);
     }
 
     public static void progressDone() {
