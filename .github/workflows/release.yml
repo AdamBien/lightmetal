@@ -35,5 +35,6 @@ jobs:
         run: |
           gh release create "v${{ steps.version.outputs.version }}.${{ github.run_number }}" \
             zbo/lightmetal.jar \
+            lmlist lmprobe lmprompt lmtps \
             --title "app ${{ steps.version.outputs.version }} (build ${{ github.run_number }})" \
             --generate-notes

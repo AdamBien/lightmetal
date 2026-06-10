@@ -3,22 +3,34 @@
 import module java.net.http;
 
 String name = MethodHandles.lookup().lookupClass().getName();
-String version = "2026-06-10.8";
+String version = "2026-06-10.9";
 
-String downloadUrl = "https://github.com/AdamBien/lightmetal/releases/latest/download/lightmetal.jar";
-Path target = Path.of("zbo", "lightmetal.jar");
+String baseUrl = "https://github.com/AdamBien/lightmetal/releases/latest/download";
+Path jarTarget = Path.of("zbo", "lightmetal.jar");
+List<String> scripts = List.of("lmlist", "lmprobe", "lmprompt", "lmtps");
 
-/// Destination is `./zbo/` so the sibling `lm*` scripts pick the JAR up via
-/// their `-cp ./zbo/lightmetal.jar` shebangs.
+/// JAR lands in `./zbo/` and the sibling `lm*` scripts in `./`, matching their
+/// `-cp ./zbo/lightmetal.jar` shebangs — the whole install only works when the
+/// user invokes the scripts from this same working directory.
 ///
 /// No flag handling — per the `/java-cli-script` convention, scripts with no
 /// operands surface their version as the first line of normal output instead
 /// of gating it behind `-version`.
 void main(String... args) throws Exception {
     IO.println("%s %s".formatted(name, version));
-    IO.println("%s: fetching %s".formatted(name, downloadUrl));
-    download(downloadUrl, target);
-    IO.println("%s: installed %s (%d bytes)".formatted(name, target, Files.size(target)));
+    install(baseUrl + "/lightmetal.jar", jarTarget, false);
+    for (var script : scripts) {
+        install(baseUrl + "/" + script, Path.of(script), true);
+    }
+}
+
+void install(String url, Path destination, boolean executable) throws Exception {
+    IO.println("%s: fetching %s".formatted(name, url));
+    download(url, destination);
+    if (executable) {
+        destination.toFile().setExecutable(true, false);
+    }
+    IO.println("%s: installed %s (%d bytes)".formatted(name, destination, Files.size(destination)));
 }
 
 /// Atomic-replace: `destination` either keeps its previous content or becomes
@@ -27,13 +39,15 @@ void main(String... args) throws Exception {
 /// The `.part` staging file lives next to `destination`, not in the system
 /// temp directory, so [Files#move] with [StandardCopyOption#ATOMIC_MOVE]
 /// cannot fail with a cross-device link error on hosts where `/tmp` sits on
-/// a different filesystem.
+/// a different filesystem. [Path#toAbsolutePath] is what makes the lookup
+/// work for `Path.of("lmlist")` — a bare filename has a null relative parent.
 ///
 /// Exit-on-failure on non-200 is deliberate — a single-file script has no
 /// caller to unwind to.
 void download(String url, Path destination) throws Exception {
-    Files.createDirectories(destination.getParent());
-    var staging = Files.createTempFile(destination.getParent(), destination.getFileName() + "-", ".part");
+    var parent = destination.toAbsolutePath().getParent();
+    Files.createDirectories(parent);
+    var staging = Files.createTempFile(parent, destination.getFileName() + "-", ".part");
     var client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
     var request = HttpRequest.newBuilder(URI.create(url)).build();
     var response = client.send(request, HttpResponse.BodyHandlers.ofFile(staging));
