@@ -164,10 +164,11 @@ Mistral-Medium-3.5-128B-UD-Q5_K_XL-00001-of-00003> What is Java?
 
 ### Sample `lmtps -all` results
 
-Hardware: MacBook Pro M5 Max, 128 GB unified memory.
 Prompt: `Count from 1 to 10.` Some models appear more than once because the
 catalog holds multiple quantizations of the same weights. Sorted by tok/s.
 All tested models were downloaded from [huggingface.co/unsloth](https://huggingface.co/unsloth).
+
+MacBook Pro M5 Max, 128 GB unified memory:
 
 | Model | Tokens | Time | tok/s |
 |---|---:|---:|---:|
@@ -181,6 +182,22 @@ All tested models were downloaded from [huggingface.co/unsloth](https://huggingf
 | Gemma-4-31B-It | 21 | 1.3 s | 15.2 |
 | Devstral-2-123B-Instruct-2512 | 30 | 4.2 s | 7.0 |
 | Mistral-Medium-3.5-128B | 34 | 5.4 s | 6.1 |
+
+Mac Studio M3 Ultra, 128 GB unified memory:
+
+| Model | Tokens | Time | tok/s |
+|---|---:|---:|---:|
+| Gemma-4-E2B-It | 33 | 0.4 s | 86.0 |
+| Gemma-4-26B-A4B-It | 22 | 0.3 s | 81.6 |
+| Mistral-7B-Instruct-v0.3 | 31 | 0.4 s | 71.0 |
+| Mistral Small 4 119B 2603 | 29 | 0.4 s | 68.1 |
+| Mistral-Small-4-119B-2603 | 29 | 0.4 s | 66.2 |
+| Gemma-4-E4B-It | 42 | 0.7 s | 56.9 |
+| Gemma-4-12B-It | 22 | 0.5 s | 39.8 |
+| Devstral-Small-2-24B-Instruct-2512 | 30 | 0.8 s | 37.5 |
+| Gemma-4-31B-It | 21 | 1.1 s | 17.4 |
+| Devstral-2-123B-Instruct-2512 | 30 | 3.5 s | 8.2 |
+| Mistral-Medium-3.5-128B | 34 | 4.6 s | 7.2 |
 
 ## Architecture
 
