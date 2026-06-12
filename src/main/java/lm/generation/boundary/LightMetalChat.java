@@ -16,6 +16,12 @@ public final class LightMetalChat implements UnaryOperator<String>, AutoCloseabl
     LightMetal lm;
     Path loadedPath;
 
+    // ZCfg.load is eager so embedders can read config (model.directory, defaults, etc.)
+    // immediately after ServiceLoader discovery, before constructing their first request.
+    public LightMetalChat() {
+        ZCfg.load("lightmetal");
+    }
+
     @Override
     public synchronized String apply(String requestJson) {
         var root = new JSONObject(new JSONTokener(requestJson));
@@ -44,7 +50,6 @@ public final class LightMetalChat implements UnaryOperator<String>, AutoCloseabl
             Log.system("[swapping model %s -> %s]".formatted(loadedPath, modelPath));
             lm.close();
         }
-        ZCfg.load("lightmetal");
         lm = LightMetal.load(modelPath);
         loadedPath = modelPath;
     }

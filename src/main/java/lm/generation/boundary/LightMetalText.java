@@ -8,9 +8,14 @@ import lm.logging.control.Log;
 
 public final class LightMetalText implements BinaryOperator<String> {
 
+    // ZCfg.load is eager so embedders can read config (model.directory, defaults, etc.)
+    // immediately after ServiceLoader discovery, before invoking apply().
+    public LightMetalText() {
+        ZCfg.load("lightmetal");
+    }
+
     @Override
     public String apply(String model, String prompt) {
-        ZCfg.load("lightmetal");
         return run(model, prompt, GenerationConfig.fromProperties());
     }
 
