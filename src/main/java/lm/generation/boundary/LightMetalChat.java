@@ -16,10 +16,11 @@ public final class LightMetalChat implements UnaryOperator<String>, AutoCloseabl
     LightMetal lm;
     Path loadedPath;
 
-    // ZCfg.load is eager so embedders can read config (model.directory, defaults, etc.)
-    // immediately after ServiceLoader discovery, before constructing their first request.
+    // Eager so embedders can read config (model.directory, defaults, etc.) the moment
+    // ServiceLoader discovers this provider. loadAndPublish also republishes the values
+    // as system properties so zero-coupling hosts use System.getProperty(...) — no lm.* imports.
     public LightMetalChat() {
-        ZCfg.load("lightmetal");
+        ZCfg.loadAndPublish("lightmetal");
     }
 
     @Override

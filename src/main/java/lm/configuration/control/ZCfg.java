@@ -32,6 +32,14 @@ public class ZCfg {
         CACHE = loadProperties(appName);
     }
 
+    // Loads the properties and republishes them as system properties so
+    // zero-coupling hosts (no lm.* imports) can read them via System.getProperty(...).
+    // Idempotent for keys that came from System.getProperties() in the first place.
+    public static void loadAndPublish(String appName) {
+        load(appName);
+        CACHE.stringPropertyNames().forEach(k -> System.setProperty(k, CACHE.getProperty(k)));
+    }
+
     static Properties loadProperties(String appName) {
         var properties = new Properties();
 
