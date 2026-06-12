@@ -9,7 +9,9 @@ import lm.inspection.entity.GGUFMetadata;
 
 // n:1 registry — many GGUF model files map to one ChatTemplate. Adding a new model
 // that reuses an existing template is a one-line change. The fragment is matched
-// (lowercased) against GGUF general.name; order constants most-specific first.
+// against GGUF general.name after both sides are lowercased and spaces/underscores
+// collapsed to hyphens, so "Google_Gemma 4 12B It" matches fragment "gemma-4".
+// Order constants most-specific first.
 public enum ModelFamily {
 
     GEMMA_4("gemma-4", GemmaChatTemplate::new),
@@ -32,9 +34,13 @@ public enum ModelFamily {
 
     public static Optional<ModelFamily> from(GGUFMetadata metadata) {
         return metadata.name()
-                .map(s -> s.toLowerCase(Locale.ROOT))
+                .map(ModelFamily::normalize)
                 .flatMap(name -> Arrays.stream(values())
                         .filter(m -> name.contains(m.nameFragment))
                         .findFirst());
+    }
+
+    private static String normalize(String name) {
+        return name.toLowerCase(Locale.ROOT).replace(' ', '-').replace('_', '-');
     }
 }
