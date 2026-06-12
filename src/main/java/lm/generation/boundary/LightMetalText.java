@@ -1,6 +1,7 @@
 package lm.generation.boundary;
 
 import module java.base;
+import lm.catalog.boundary.ModelCatalog;
 import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
 import lm.generation.entity.Tps;
@@ -24,7 +25,9 @@ public final class LightMetalText implements BinaryOperator<String> {
         var out = new StringBuilder();
         var count = new AtomicLong();
         var startNanos = new AtomicLong();
-        var modelPath = Path.of(model);
+        // Route through ModelCatalog so bare filenames resolve under models.directory
+        // (matching the CLI's -model flag). Absolute paths pass through unchanged.
+        var modelPath = ModelCatalog.resolve(model);
         Log.system("[model loaded from %s]".formatted(modelPath.toString()));
         try (var lm = LightMetal.load(modelPath);
              var stream = lm.generate(prompt, config)) {

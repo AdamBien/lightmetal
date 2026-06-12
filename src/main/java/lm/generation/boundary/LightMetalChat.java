@@ -5,6 +5,7 @@ import module java.base;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import lm.catalog.boundary.ModelCatalog;
 import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
 import lm.http.control.MessagesHandler;
@@ -26,7 +27,10 @@ public final class LightMetalChat implements UnaryOperator<String>, AutoCloseabl
     @Override
     public synchronized String apply(String requestJson) {
         var root = new JSONObject(new JSONTokener(requestJson));
-        var modelPath = Path.of(root.getString("model"));
+        // Route through ModelCatalog so bare filenames (e.g. "gemma-4-26B...gguf")
+        // resolve under models.directory the same way the CLI's -model flag does.
+        // Absolute paths pass through unchanged.
+        var modelPath = ModelCatalog.resolve(root.getString("model"));
         ensureLoaded(modelPath);
         var req = AnthropicMessagesRequest.from(root, GenerationConfig.fromProperties());
         var resp = lm.chat(req.system(), req.tools(), req.turns(), config(req));
