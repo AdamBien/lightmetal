@@ -33,7 +33,7 @@ void runOneShot(Args parsed) {
             parsed.minP(),
             parsed.seed());
     var generator = new LightMetalText();
-    System.out.println(generator.run(ModelCatalog.resolve(parsed.model()).toString(), parsed.prompt(), cfg));
+    System.out.println(generator.run(parsed.model(), parsed.prompt(), cfg));
 }
 
 void runServer(Args parsed) {

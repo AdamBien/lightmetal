@@ -17,4 +17,9 @@ public final class Mistral4ChatTemplate implements ChatTemplate {
     public ToolCallParser.Parsed parse(String generated) {
         return ToolCallParser.parse(generated);
     }
+
+    @Override
+    public List<String> toolCallOpenMarkers() {
+        return List.of(ToolCallParser.TOOL_CALLS_MARKER);
+    }
 }

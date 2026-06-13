@@ -36,8 +36,14 @@ public final class HttpAPI implements AutoCloseable {
             latch.countDown();
         }));
         var modelName = lm.metadata().name().orElse("unknown model");
-        Log.success("[lightmetal serving %s on http://localhost:%d/v1/messages]"
-                .formatted(modelName, api.port()));
+        var base = "http://localhost:" + api.port();
+        Log.success("[lightmetal serving %s on %s]".formatted(modelName, base));
+        // Advertise the base URL OpenAI clients need (e.g. DevoxxGenie / langchain4j append
+        // /chat/completions to it): pointing such a client at /v1/messages routes to the
+        // Anthropic handler and yields a response with no "choices".
+        Log.system("  OpenAI-compatible : POST " + base + "/v1/chat/completions  (base URL: " + base + "/v1)");
+        Log.system("  Anthropic Messages: POST " + base + "/v1/messages");
+        Log.system("  Models            : GET  " + base + "/v1/models  (also /api/v1/models for LM Studio clients)");
         try {
             latch.await();
         } catch (InterruptedException e) {
@@ -53,9 +59,13 @@ public final class HttpAPI implements AutoCloseable {
                 t.setDaemon(false);
                 return t;
             });
+            var models = new ModelsHandler(lm);
             server.createContext("/v1/messages", new MessagesHandler(lm));
             server.createContext("/v1/chat/completions", new ChatCompletionsHandler(lm));
-            server.createContext("/v1/models", new ModelsHandler(lm));
+            server.createContext("/v1/models", models);
+            // LM Studio-compatible clients (e.g. DevoxxGenie's LMStudio provider) fetch the
+            // model list from /api/v1/models rather than the OpenAI-standard /v1/models.
+            server.createContext("/api/v1/models", models);
             server.setExecutor(executor);
             server.start();
             return new HttpAPI(server, executor);

@@ -8,6 +8,7 @@ import java.util.stream.Stream;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import lm.configuration.control.ZCfg;
 import lm.configuration.entity.Token;
 import lm.prompting.entity.Turn;
 import lm.tools.control.ToolCallParser;
@@ -16,6 +17,7 @@ import lm.tools.entity.ToolCall;
 
 public final class GemmaChatTemplate implements ChatTemplate {
 
+    private final boolean enableThinking = ZCfg.bool("gemma4.enable_thinking", false);
     private static final String TOOL_CALL_OPEN = "<|tool_call>";
     private static final String TOOL_CALL_CLOSE = "<tool_call|>";
     private static final String CALL_PREFIX = "call:";
@@ -36,6 +38,11 @@ public final class GemmaChatTemplate implements ChatTemplate {
         return STOPS;
     }
 
+    @Override
+    public List<String> toolCallOpenMarkers() {
+        return List.of(TOOL_CALL_OPEN);
+    }
+
     // The gemma4 prefill (`<|channel>thought\n<channel|>`) starts the model inside
     // the thought channel, so streamed tokens are tagged "thought" until the model
     // emits `<channel|>` to switch to the answer channel ("final"). The marker may
@@ -45,7 +52,7 @@ public final class GemmaChatTemplate implements ChatTemplate {
     @Override
     public Stream<Token> tagChannels(Stream<Token> tokens) {
         return tokens.gather(Gatherer.<Token, ChannelFilter, Token>ofSequential(
-                ChannelFilter::new,
+                () -> new ChannelFilter(enableThinking),
                 (filter, in, down) -> {
                     filter.consume(in).forEach(down::push);
                     return true;
@@ -56,8 +63,12 @@ public final class GemmaChatTemplate implements ChatTemplate {
     static final class ChannelFilter {
         private static final String CLOSE = PromptTemplate.GEMMA_CHANNEL_CLOSE;
         private final StringBuilder pending = new StringBuilder();
-        private String channel = "thought";
+        private String channel;
         private int lastId;
+
+        ChannelFilter(boolean enableThinking) {
+            this.channel = enableThinking ? "thought" : "final";
+        }
 
         List<Token> consume(Token in) {
             lastId = in.id();

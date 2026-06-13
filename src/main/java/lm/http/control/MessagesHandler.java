@@ -54,6 +54,19 @@ public final class MessagesHandler implements HttpHandler {
                 writeError(exchange, status, "method_not_allowed", "use POST");
                 return;
             }
+            // The /v1/messages context prefix-matches sub-paths, so an OpenAI client
+            // configured with base URL .../v1/messages would POST /v1/messages/chat/completions
+            // and silently get Anthropic-format JSON (no "choices"). Reject the mismatch with
+            // a pointer to the right configuration instead of a misleading 200.
+            var path = uri.getPath();
+            if (!"/v1/messages".equals(path)) {
+                status = 404;
+                writeError(exchange, status, "not_found",
+                        "unknown path " + path + "; this is the Anthropic endpoint (POST /v1/messages). "
+                                + "OpenAI-compatible clients should set the base URL to .../v1 so requests "
+                                + "reach /v1/chat/completions");
+                return;
+            }
             String body;
             try (InputStream in = exchange.getRequestBody()) {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);

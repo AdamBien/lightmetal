@@ -9,6 +9,8 @@ import org.json.JSONObject;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import lm.configuration.control.ZCfg;
+import lm.configuration.entity.ContextParams;
 import lm.generation.boundary.LightMetal;
 import lm.logging.control.Log;
 
@@ -33,13 +35,23 @@ public final class ModelsHandler implements HttpHandler {
                 writeError(exchange, status, "method_not_allowed", "use GET");
                 return;
             }
+            // The effective served context window — ZCfg "context.length" overrides the GGUF's
+            // advertised maximum (see LightMetal.contextParams), so report that, not the GGUF value.
+            var ctxLen = ZCfg.integer("context.length", ContextParams.defaults().contextLength());
+            var id = lm.metadata().name().orElse("lightmetal");
             var body = new JSONObject()
                     .put("object", "list")
+                    // Standard OpenAI fields plus LM Studio rich-metadata fields
+                    // (display_name / max_context_length) so the LM Studio provider, which
+                    // fetches /api/v1/models, can populate its model list and context window.
                     .put("data", new JSONArray().put(new JSONObject()
-                            .put("id", lm.metadata().name().orElse("lightmetal"))
+                            .put("id", id)
                             .put("object", "model")
                             .put("created", 0)
-                            .put("owned_by", "local")))
+                            .put("owned_by", "local")
+                            .put("display_name", id)
+                            .put("max_context_length", ctxLen)
+                            .put("context_length", ctxLen)))
                     .toString();
             write(exchange, 200, body);
             status = 200;
