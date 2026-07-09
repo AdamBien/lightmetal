@@ -1,85 +1,70 @@
-/// Inspection BC — pure-Java GGUF metadata reader.
+/// # Inspection
+/// > Read the metadata header of a GGUF model file — without loading tensor
+/// > weights and without the native library.
 ///
-/// ## Purpose
+/// ## Boundary
 ///
-/// Extracts the metadata header of a GGUF file (architecture, chat template,
-/// BOS/EOS token ids, context length, tokenizer settings, …) without loading
-/// the tensor weights and without going through `libllama.dylib` via the FFM
-/// bindings in `lm.backend.ffm.llama_h`. Lets the rest of the application
-/// derive sane defaults from the model file itself instead of requiring
-/// per-model entries in `~/.lightmetal/app.properties`.
+/// - `inspect-model` — read a GGUF file's metadata header and return it as
+///   typed, immutable metadata
 ///
-/// ## BCE layout
+/// ## Requirements
 ///
-/// - **boundary** — [lm.inspection.boundary.Inspector]: single public facade.
-///   `Inspector.inspect(Path)` returns a [lm.inspection.entity.GGUFMetadata].
-/// - **control** — [lm.inspection.control.GGUFReader]: binary parser. Mmaps
-///   the file head (up to 256 MB) and walks the typed key-value section.
-///   Little-endian. Supports GGUF v2 and v3; rejects v1 and unknown versions
-///   with a clear error.
-/// - **entity** — [lm.inspection.entity.GGUFMetadata]: immutable record
-///   wrapping the raw `Map<String,Object>` plus typed accessors (`string`,
-///   `integer`, `longValue`, `bool`) and convenience getters for the common
-///   keys.
+/// ### R1: Parse the header
 ///
-/// ## Dependencies
+/// - R1.1 — When a GGUF v2 or v3 file is inspected, the BC shall return its
+///   version, tensor count, and every typed key-value pair of the header.
+///   _(why: startup defaults must come from the model file itself, before any
+///   weight load and without per-model entries in `app.properties`)_
+/// - R1.2 — If the file does not begin with the GGUF magic, then the BC shall
+///   reject it, naming the magic found.
+/// - R1.3 — If the file declares a GGUF version other than 2 or 3, then the
+///   BC shall reject it, naming the version.
+/// - R1.4 — If the header declares an unknown value type or an invalid
+///   string or array length, then the BC shall reject the file rather than
+///   misread it.
+/// - R1.5 — If the file cannot be read, then the BC shall fail, naming the
+///   file.
 ///
-/// None on other lightmetal BCs. Pure `java.base` + `java.nio`. Independent
-/// of llama.cpp version drift and of the jextract-generated FFM bindings.
+/// ### R2: Typed metadata access
 ///
-/// ## Supported GGUF format
+/// - R2.1 — When a recognised key is present, the BC shall expose it through
+///   a typed accessor: architecture, model name, chat template, context
+///   length, BOS / EOS token id, add-BOS flag.
+/// - R2.2 — If a queried key is absent or carries a different type, then the
+///   BC shall report absence instead of failing. _(why: GGUF exporters
+///   disagree on which keys they write; absence must be a value, not an
+///   error)_
+/// - R2.3 — While the metadata declares an architecture, the BC shall resolve
+///   the context length under that architecture's `context_length` key.
 ///
-/// GGUF v2 and v3 per the official
-/// [spec](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md). Value
-/// types: u8 / i8 / u16 / i16 / u32 / i32 / f32 / bool / string / u64 / i64 /
-/// f64 / array.
+/// ## Entities
 ///
-/// ## Recognised metadata keys
+/// - GGUFMetadata
 ///
-/// [lm.inspection.entity.GGUFMetadata] exposes convenience accessors for:
+/// ## Out of scope
 ///
-/// | Key                              | Accessor                                                  |
-/// |----------------------------------|-----------------------------------------------------------|
-/// | `general.architecture`           | [lm.inspection.entity.GGUFMetadata#architecture()]        |
-/// | `general.name`                   | [lm.inspection.entity.GGUFMetadata#name()]                |
-/// | `tokenizer.chat_template`        | [lm.inspection.entity.GGUFMetadata#chatTemplate()]        |
-/// | `<arch>.context_length`          | [lm.inspection.entity.GGUFMetadata#contextLength()]       |
-/// | `tokenizer.ggml.bos_token_id`    | [lm.inspection.entity.GGUFMetadata#bosTokenId()]          |
-/// | `tokenizer.ggml.eos_token_id`    | [lm.inspection.entity.GGUFMetadata#eosTokenId()]          |
-/// | `tokenizer.ggml.add_bos_token`   | [lm.inspection.entity.GGUFMetadata#addBosToken()]         |
+/// - Tensor data — only the header is read.
+/// - The model → chat-template binding: `ModelFamily.from(metadata)` in the
+///   prompting BC is the single resolution path.
+/// - Deriving generation defaults from the metadata (configuration and
+///   generation BCs).
 ///
-/// Anything else: `meta.get("any.key")` or `meta.kvs()`.
+/// ## Notes
 ///
-/// ## Model→template binding
+/// GGUF v2/v3 per the official
+/// [spec](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md); value
+/// types u8 / i8 / u16 / i16 / u32 / i32 / f32 / bool / string / u64 / i64 /
+/// f64 / array; little-endian; the file head is mmapped up to 256 MB.
+/// Anything beyond the recognised keys: `meta.get("any.key")` or
+/// `meta.kvs()`.
 ///
-/// This BC stops at exposing raw metadata. The n:1 mapping of GGUF model
-/// files to [lm.prompting.control.ChatTemplate] implementations lives in
-/// [lm.prompting.control.ModelFamily]: each enum constant binds a `general.name`
-/// fragment to a `ChatTemplate` factory, several constants may share one
-/// factory, and `ModelFamily.from(metadata)` is the single resolution path.
-/// Unknown models fail loud — adding a new model is a one-line enum entry.
-///
-/// ## Usage
+/// Pure `java.base` + `java.nio`, no dependency on other lightmetal BCs, on
+/// llama.cpp version drift, or on the jextract-generated FFM bindings —
+/// metadata is readable before (or without) loading the model.
 ///
 /// ```java
 /// var meta = Inspector.inspect(Path.of("/path/to/model.gguf"));
 /// var family = ModelFamily.from(meta).orElseThrow();
 /// var ctxLen = meta.contextLength().orElse(32_768L);
 /// ```
-///
-/// ## Why pure Java?
-///
-/// - Fits the project's zero-dependency, single-JAR ethos.
-/// - Reads metadata *before* loading the model — useful for startup-time
-///   defaults and for inspecting GGUFs without the native library present.
-/// - Unlocks arbitrary GGUF keys without a `jextract` regeneration (the
-///   `llama_model_meta_val_str` family is not currently bound in
-///   `lm.backend.ffm.llama_h`).
-/// - Independent of llama.cpp version drift; the GGUF format spec is small
-///   and stable.
-///
-/// @see <a href="https://github.com/ggerganov/ggml/blob/master/docs/gguf.md">GGUF format specification</a>
-/// @see lm.inspection.boundary.Inspector
-/// @see lm.inspection.entity.GGUFMetadata
-/// @see lm.inspection.control.GGUFReader
 package lm.inspection;

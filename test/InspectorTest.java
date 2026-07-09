@@ -1,106 +1,105 @@
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 import lm.catalog.boundary.ModelCatalog;
 import lm.configuration.control.ZCfg;
 import lm.inspection.boundary.Inspector;
-import lm.inspection.control.GGUFReader;
 import lm.inspection.entity.GGUFMetadata;
 import lm.prompting.control.ModelFamily;
 
-void main() {
-    testEmptyMetadataDegradesGracefully();
-    testParsesCraftedV3Header();
-    testRejectsBadMagic();
-    testRejectsUnsupportedVersion();
-    testRealModel();
+static final int MAGIC = 0x46554747;
+
+void main() throws IOException {
+    r1ParseHeader();
+    r2TypedAccess();
+    modelFamilySmoke();
+    realModel();
     IO.println("[ok] Inspector tests");
 }
 
-void testEmptyMetadataDegradesGracefully() {
-    var empty = GGUFMetadata.empty();
-    if (!empty.kvs().isEmpty())
-        throw new AssertionError("empty() should have no kv pairs");
-    if (ModelFamily.from(empty).isPresent())
-        throw new AssertionError("empty() should not match any ModelFamily");
-    if (empty.contextLength().isPresent())
-        throw new AssertionError("empty() should not have a context_length");
-    if (empty.addBosToken().isPresent())
-        throw new AssertionError("empty() should not have add_bos_token");
-    if (empty.architecture().isPresent())
-        throw new AssertionError("empty() should not have an architecture");
+/// R1: Parse the header — one row per statement, all through the boundary.
+void r1ParseHeader() throws IOException {
+    record Case(String req, Path gguf, String expectedError) {}
+    var cases = List.of(
+            new Case("R1.1", craftedV3(), null),
+            new Case("R1.2", write("bad-magic", header(b -> b.putInt(0xDEADBEEF))), "not a GGUF"),
+            new Case("R1.3", write("v1", header(b -> { b.putInt(MAGIC); b.putInt(1); })), "version"),
+            new Case("R1.4", write("bad-type", header(b -> {
+                b.putInt(MAGIC);
+                b.putInt(3);
+                b.putLong(0L);              // tensor_count
+                b.putLong(1L);              // kv_count
+                putKey(b, "some.key");
+                b.putInt(99);               // unknown value type tag
+            })), "unknown GGUF value type"),
+            new Case("R1.5", Path.of(System.getProperty("java.io.tmpdir"), "does-not-exist.gguf"),
+                    "does-not-exist.gguf")
+    );
+    for (var c : cases) {
+        try {
+            var meta = Inspector.inspect(c.gguf());
+            if (c.expectedError() != null)
+                throw new AssertionError("%s — expected error containing '%s' but inspect succeeded"
+                        .formatted(c.req(), c.expectedError()));
+            if (meta.version() != 3)
+                throw new AssertionError("%s — version: %d".formatted(c.req(), meta.version()));
+            if (meta.tensorCount() != 0L)
+                throw new AssertionError("%s — tensorCount: %d".formatted(c.req(), meta.tensorCount()));
+            if (meta.kvs().size() != 5)
+                throw new AssertionError("%s — kv count: %d".formatted(c.req(), meta.kvs().size()));
+        } catch (RuntimeException e) {
+            if (c.expectedError() == null || !e.getMessage().contains(c.expectedError()))
+                throw new AssertionError("%s — unexpected error: %s".formatted(c.req(), e), e);
+        }
+    }
 }
 
-void testParsesCraftedV3Header() {
-    var buf = ByteBuffer.allocate(4096).order(ByteOrder.LITTLE_ENDIAN);
-    buf.putInt(0x46554747);            // "GGUF"
-    buf.putInt(3);                      // version
-    buf.putLong(0L);                    // tensor_count
-    buf.putLong(5L);                    // kv_count
+/// R2: Typed metadata access — one labeled check row per statement.
+void r2TypedAccess() throws IOException {
+    var meta = Inspector.inspect(craftedV3());
+    var empty = GGUFMetadata.empty();
+    record Check(String req, String what, boolean ok) {}
+    var checks = List.of(
+            new Check("R2.1", "architecture", "gemma".equals(meta.architecture().orElse(null))),
+            new Check("R2.1", "name", "gemma-3-test".equals(meta.name().orElse(null))),
+            new Check("R2.1", "chatTemplate", meta.chatTemplate().orElse("").contains("{{ msg }}")),
+            new Check("R2.1", "bosTokenId", meta.bosTokenId().orElse(-1) == 2),
+            new Check("R2.2", "absent key reports absence", empty.architecture().isEmpty()
+                    && empty.addBosToken().isEmpty()
+                    && empty.eosTokenId().isEmpty()
+                    && empty.kvs().isEmpty()),
+            new Check("R2.2", "wrong-typed key reports absence",
+                    meta.bool("general.architecture").isEmpty()
+                    && meta.integer("general.name").isEmpty()),
+            new Check("R2.3", "context length under <arch>.context_length",
+                    meta.contextLength().orElse(-1) == 8192L),
+            new Check("R2.3", "no architecture, no context length",
+                    empty.contextLength().isEmpty())
+    );
+    for (var c : checks)
+        if (!c.ok())
+            throw new AssertionError(c.req() + " — " + c.what());
+}
 
-    putStringKV(buf, "general.architecture", "gemma");
-    putStringKV(buf, "general.name", "gemma-3-test");
-    putStringKV(buf, "tokenizer.chat_template", "<|turn>user\n{{ msg }}<turn|>");
-    putKey(buf, "gemma.context_length");
-    buf.putInt(10);                     // type U64
-    buf.putLong(8192L);
-    putKey(buf, "tokenizer.ggml.bos_token_id");
-    buf.putInt(4);                      // type U32
-    buf.putInt(2);
-
-    buf.flip();
-    var meta = GGUFReader.parse(buf);
-
-    if (meta.version() != 3)
-        throw new AssertionError("version: " + meta.version());
-    if (meta.tensorCount() != 0L)
-        throw new AssertionError("tensorCount: " + meta.tensorCount());
-    if (meta.kvs().size() != 5)
-        throw new AssertionError("kv count: " + meta.kvs().size());
-    if (!"gemma".equals(meta.architecture().orElseThrow()))
-        throw new AssertionError("arch: " + meta.architecture());
-    if (!"gemma-3-test".equals(meta.name().orElseThrow()))
-        throw new AssertionError("name: " + meta.name());
-    if (meta.contextLength().orElse(-1) != 8192L)
-        throw new AssertionError("ctx: " + meta.contextLength());
-    if (meta.bosTokenId().orElse(-1) != 2)
-        throw new AssertionError("bos: " + meta.bosTokenId());
-
+/// Model → template binding belongs to the prompting BC (see its future
+/// spec); kept here as smoke so the coverage is not lost in the meantime.
+void modelFamilySmoke() throws IOException {
+    var meta = Inspector.inspect(craftedV3());
     var family = ModelFamily.from(meta).orElseThrow();
     if (family != ModelFamily.GEMMA_3)
         throw new AssertionError("expected GEMMA_3 for name=gemma-3-test, got: " + family);
+    if (ModelFamily.from(GGUFMetadata.empty()).isPresent())
+        throw new AssertionError("empty() should not match any ModelFamily");
 }
 
-void testRejectsBadMagic() {
-    var buf = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
-    buf.putInt(0xDEADBEEF);
-    buf.flip();
-    try {
-        GGUFReader.parse(buf);
-        throw new AssertionError("expected IllegalArgumentException for bad magic");
-    } catch (IllegalArgumentException expected) {
-        if (!expected.getMessage().contains("not a GGUF"))
-            throw new AssertionError("wrong message: " + expected.getMessage());
-    }
-}
-
-void testRejectsUnsupportedVersion() {
-    var buf = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
-    buf.putInt(0x46554747);
-    buf.putInt(1);
-    buf.flip();
-    try {
-        GGUFReader.parse(buf);
-        throw new AssertionError("expected IllegalArgumentException for v1");
-    } catch (IllegalArgumentException expected) {
-        if (!expected.getMessage().contains("version"))
-            throw new AssertionError("wrong message: " + expected.getMessage());
-    }
-}
-
-void testRealModel() {
+/// R1.1 against a real GGUF when one is configured; skips otherwise.
+void realModel() {
     ZCfg.load("lightmetal");
     var fileName = ZCfg.string("model");
     if (fileName == null) {
@@ -115,11 +114,11 @@ void testRealModel() {
     var meta = Inspector.inspect(modelPath);
 
     if (meta.kvs().isEmpty())
-        throw new AssertionError("real model returned no kv pairs");
+        throw new AssertionError("R1.1 — real model returned no kv pairs");
     var arch = meta.architecture()
-            .orElseThrow(() -> new AssertionError("real model has no general.architecture"));
+            .orElseThrow(() -> new AssertionError("R1.1 — real model has no general.architecture"));
     var tmpl = meta.chatTemplate()
-            .orElseThrow(() -> new AssertionError("real model has no tokenizer.chat_template"));
+            .orElseThrow(() -> new AssertionError("R1.1 — real model has no tokenizer.chat_template"));
     var family = ModelFamily.from(meta).map(ModelFamily::name).orElse("<unmapped>");
 
     IO.println("[ok] real model: arch=%s, kv=%d, family=%s, template_chars=%d"
@@ -130,6 +129,37 @@ void testRealModel() {
     meta.addBosToken().ifPresent(b -> IO.println("       add_bos_token=" + b));
 }
 
+Path craftedV3() throws IOException {
+    return write("crafted-v3", header(b -> {
+        b.putInt(MAGIC);
+        b.putInt(3);                        // version
+        b.putLong(0L);                      // tensor_count
+        b.putLong(5L);                      // kv_count
+        putStringKV(b, "general.architecture", "gemma");
+        putStringKV(b, "general.name", "gemma-3-test");
+        putStringKV(b, "tokenizer.chat_template", "<|turn>user\n{{ msg }}<turn|>");
+        putKey(b, "gemma.context_length");
+        b.putInt(10);                       // type U64
+        b.putLong(8192L);
+        putKey(b, "tokenizer.ggml.bos_token_id");
+        b.putInt(4);                        // type U32
+        b.putInt(2);
+    }));
+}
+
+ByteBuffer header(java.util.function.Consumer<ByteBuffer> content) {
+    var buf = ByteBuffer.allocate(4096).order(ByteOrder.LITTLE_ENDIAN);
+    content.accept(buf);
+    return buf.flip();
+}
+
+Path write(String name, ByteBuffer buf) throws IOException {
+    var file = Files.createTempFile(name, ".gguf");
+    file.toFile().deleteOnExit();
+    Files.write(file, Arrays.copyOf(buf.array(), buf.limit()));
+    return file;
+}
+
 void putKey(ByteBuffer buf, String key) {
     var bytes = key.getBytes(StandardCharsets.UTF_8);
     buf.putLong(bytes.length);
@@ -138,7 +168,7 @@ void putKey(ByteBuffer buf, String key) {
 
 void putStringKV(ByteBuffer buf, String key, String value) {
     putKey(buf, key);
-    buf.putInt(8);                       // type STRING
+    buf.putInt(8);                          // type STRING
     var bytes = value.getBytes(StandardCharsets.UTF_8);
     buf.putLong(bytes.length);
     buf.put(bytes);
