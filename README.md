@@ -184,12 +184,15 @@ Mistral-Medium-3.5-128B-UD-Q5_K_XL-00001-of-00003> What is Java?
 
 Prompt: `Count from 1 to 10.` Some models appear more than once because the
 catalog holds multiple quantizations of the same weights. Sorted by tok/s.
-All tested models were downloaded from [huggingface.co/unsloth](https://huggingface.co/unsloth).
+All tested models were downloaded from [huggingface.co/unsloth](https://huggingface.co/unsloth),
+except Mellum2, which is published by
+[huggingface.co/JetBrains](https://huggingface.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q8_0).
 
 MacBook Pro M5 Max, 128 GB unified memory:
 
 | Model | Tokens | Time | tok/s |
 |---|---:|---:|---:|
+| Mellum2-12B-A2.5B-Thinking | 15 | 0.1 s | 149.7 |
 | Gemma-4-E2B-It | 33 | 0.3 s | 94.9 |
 | Gemma-4-26B-A4B-It | 22 | 0.2 s | 90.0 |
 | Nemotron-3-Nano-30B-A3B | 25 | 0.3 s | 88.6 |
