@@ -20,6 +20,7 @@ public enum ModelFamily {
     // this earlier, more-specific entry a Nemotron GGUF would silently match
     // MISTRAL_NEMO and be rendered with the Mistral template.
     NEMOTRON("nemotron", NemotronChatTemplate::new),
+    MELLUM("mellum", MellumChatTemplate::new),
     MISTRAL_NEMO("nemo", Mistral4ChatTemplate::new),
     DEVSTRAL("devstral", Mistral4ChatTemplate::new),
     MISTRAL_4("mistral", Mistral4ChatTemplate::new);

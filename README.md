@@ -2,8 +2,9 @@
 
 GPU LLM inference on Apple Silicon from a single Java 25 executable JAR with
 zero dependencies. Binds a Metal-enabled `libllama.dylib` through the Foreign
-Function & Memory API. Runs Mistral- and Gemma-architecture GGUF models —
-Mistral Medium 3.5, Mistral Nemo, Devstral, Gemma 3, Gemma 4.
+Function & Memory API. Runs Mistral-, Gemma-, Nemotron- and Mellum-architecture
+GGUF models — Mistral Medium 3.5, Mistral Nemo, Devstral, Gemma 3, Gemma 4,
+Nemotron 3 Nano, Mellum 2.
 
 ![lightmetal](lightmetal.png)
 
@@ -298,9 +299,11 @@ All optional — defaults shown.
 
 | Property | Default | Effect |
 |---|---|---|
-| `template` | auto-detected from `tokenizer.chat_template` | Active chat template. Currently `mistral4` or `gemma4`. Override if auto-detection picks the wrong one. |
+| `template` | _(unset)_ | Legacy escape hatch for the HTTP endpoints only: `v0.3`, `v3` or `basic` force the plain Mistral `[INST]` prompt. The chat template itself is resolved from the GGUF's `general.name` — `mistral4`, `gemma4`, `nemotron` or `mellum` — and any other value here is ignored. |
 | `mistral4.reasoning_effort` | `none` | Value emitted in the `[MODEL_SETTINGS]{"reasoning_effort":"…"}` block. Typical: `none`, `low`, `medium`, `high`. |
 | `gemma4.enable_thinking` | `false` | When `true`, leaves the `<\|channel>thought` block open so the model emits reasoning before its answer (stripped from history on subsequent turns). |
+| `nemotron.enable_thinking` | `false` | When `true`, prefills `<think>` in the generation prompt so the model reasons before answering. |
+| `mellum.enable_thinking` | `false` | When `true`, leaves the generation prompt bare so the model opens its own `<think>` block. Left `false`, the prompt carries a pre-closed block — Mellum reasons unless told not to, so omitting the block is not the same as disabling it. |
 
 ### Context / KV cache
 

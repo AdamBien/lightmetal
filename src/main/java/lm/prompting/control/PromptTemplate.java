@@ -116,12 +116,37 @@ public interface PromptTemplate {
         return sb.toString();
     }
 
-    String NEMOTRON_IM_START = "<|im_start|>";
-    String NEMOTRON_IM_END = "<|im_end|>";
-    String NEMOTRON_THINK_OPEN = "<think>";
-    String NEMOTRON_THINK_CLOSE = "</think>";
-    String NEMOTRON_TOOL_CALL_OPEN = "<tool_call>";
-    String NEMOTRON_TOOL_CALL_CLOSE = "</tool_call>";
+    // Shared by every ChatML-derived family (Nemotron, Mellum): the same six markers
+    // are literal special tokens in both vocabularies. What differs between them is
+    // the payload — Nemotron encodes tool calls as <function=> XML, Mellum as JSON —
+    // so the renderers stay separate while the markers do not.
+    String CHATML_IM_START = "<|im_start|>";
+    String CHATML_IM_END = "<|im_end|>";
+    String CHATML_THINK_OPEN = "<think>";
+    String CHATML_THINK_CLOSE = "</think>";
+    String CHATML_TOOL_CALL_OPEN = "<tool_call>";
+    String CHATML_TOOL_CALL_CLOSE = "</tool_call>";
+    /// Keeps what follows the LAST `</think>`. A block left unterminated — generation
+    /// hit max-tokens mid-thought — has no close, so everything before the open is
+    /// the answer; for a prefilling family (Nemotron) the open lives in the prompt
+    /// rather than the output, and the whole text is the answer.
+    static String chatmlStripThinking(String text) {
+        var close = text.lastIndexOf(CHATML_THINK_CLOSE);
+        if (close >= 0) {
+            return text.substring(close + CHATML_THINK_CLOSE.length());
+        }
+        var open = text.indexOf(CHATML_THINK_OPEN);
+        return open >= 0 ? text.substring(0, open) : text;
+    }
+
+    static String chatmlStripTrailingEnd(String s) {
+        var t = s.stripTrailing();
+        while (t.endsWith(CHATML_IM_END)) {
+            t = t.substring(0, t.length() - CHATML_IM_END.length()).stripTrailing();
+        }
+        return t;
+    }
+
     // Verbatim from the GGUF chat template (Nemotron-3-Nano) — the model is trained
     // against this exact wording, so it must not be reformatted.
     String NEMOTRON_TOOL_INSTRUCTIONS = """
@@ -153,55 +178,55 @@ public interface PromptTemplate {
         var sb = new StringBuilder();
         // The GGUF template emits the system header even when there is no system
         // prompt and no tools — an empty system turn is part of the trained format.
-        sb.append(NEMOTRON_IM_START).append("system\n");
+        sb.append(CHATML_IM_START).append("system\n");
         var hasSystem = system != null && !system.isBlank();
         if (hasSystem) sb.append(system.strip());
         if (tools != null && !tools.isEmpty()) {
             if (hasSystem) sb.append("\n\n");
             appendNemotronTools(sb, tools);
         }
-        sb.append(NEMOTRON_IM_END).append('\n');
+        sb.append(CHATML_IM_END).append('\n');
         for (var turn : turns) {
             appendNemotronTurn(sb, turn);
         }
-        sb.append(NEMOTRON_IM_START).append("assistant\n");
+        sb.append(CHATML_IM_START).append("assistant\n");
         sb.append(enableThinking
-                ? NEMOTRON_THINK_OPEN + "\n"
-                : NEMOTRON_THINK_OPEN + NEMOTRON_THINK_CLOSE);
+                ? CHATML_THINK_OPEN + "\n"
+                : CHATML_THINK_OPEN + CHATML_THINK_CLOSE);
         return sb.toString();
     }
 
     private static void appendNemotronTurn(StringBuilder sb, Turn turn) {
         switch (turn) {
-            case UserText u -> sb.append(NEMOTRON_IM_START).append("user\n")
+            case UserText u -> sb.append(CHATML_IM_START).append("user\n")
                     .append(u.text() == null ? "" : u.text())
-                    .append(NEMOTRON_IM_END).append('\n');
-            case AssistantText a -> sb.append(NEMOTRON_IM_START).append("assistant\n")
+                    .append(CHATML_IM_END).append('\n');
+            case AssistantText a -> sb.append(CHATML_IM_START).append("assistant\n")
                     .append(nemotronAssistantContent(a.text()))
-                    .append(NEMOTRON_IM_END).append('\n');
+                    .append(CHATML_IM_END).append('\n');
             case AssistantToolCalls a -> {
                 var content = nemotronAssistantContent(a.text());
-                sb.append(NEMOTRON_IM_START).append("assistant\n").append(content);
+                sb.append(CHATML_IM_START).append("assistant\n").append(content);
                 // the GGUF template joins an empty think block and <tool_call> directly
-                if (content.length() > (NEMOTRON_THINK_OPEN + NEMOTRON_THINK_CLOSE).length()) {
+                if (content.length() > (CHATML_THINK_OPEN + CHATML_THINK_CLOSE).length()) {
                     sb.append('\n');
                 }
                 for (var call : a.calls()) {
-                    sb.append(NEMOTRON_TOOL_CALL_OPEN).append('\n')
+                    sb.append(CHATML_TOOL_CALL_OPEN).append('\n')
                             .append("<function=").append(call.name()).append(">\n");
                     appendNemotronParameters(sb, call.input());
-                    sb.append("</function>\n").append(NEMOTRON_TOOL_CALL_CLOSE).append('\n');
+                    sb.append("</function>\n").append(CHATML_TOOL_CALL_CLOSE).append('\n');
                 }
-                sb.append(NEMOTRON_IM_END).append('\n');
+                sb.append(CHATML_IM_END).append('\n');
             }
             case UserToolResults r -> {
-                sb.append(NEMOTRON_IM_START).append("user\n");
+                sb.append(CHATML_IM_START).append("user\n");
                 for (var result : r.results()) {
                     sb.append("<tool_response>\n")
                             .append(result.content() == null ? "" : result.content())
                             .append("\n</tool_response>\n");
                 }
-                sb.append(NEMOTRON_IM_END).append('\n');
+                sb.append(CHATML_IM_END).append('\n');
             }
         }
     }
@@ -211,14 +236,14 @@ public interface PromptTemplate {
     // the model expects in its own prior output.
     static String nemotronAssistantContent(String text) {
         var t = text == null ? "" : text;
-        var close = t.lastIndexOf(NEMOTRON_THINK_CLOSE);
+        var close = t.lastIndexOf(CHATML_THINK_CLOSE);
         if (close >= 0) {
-            t = t.substring(close + NEMOTRON_THINK_CLOSE.length());
+            t = t.substring(close + CHATML_THINK_CLOSE.length());
         } else {
-            var open = t.indexOf(NEMOTRON_THINK_OPEN);
+            var open = t.indexOf(CHATML_THINK_OPEN);
             if (open >= 0) t = t.substring(0, open);
         }
-        return NEMOTRON_THINK_OPEN + NEMOTRON_THINK_CLOSE + t.strip();
+        return CHATML_THINK_OPEN + CHATML_THINK_CLOSE + t.strip();
     }
 
     private static void appendNemotronParameters(StringBuilder sb, JSONObject input) {
@@ -276,6 +301,173 @@ public interface PromptTemplate {
             sb.append("\n<enum>").append(pythonJson(enums)).append("</enum>");
         }
         sb.append("\n</parameter>");
+    }
+
+    // Verbatim from the GGUF chat template (Mellum2-12B-A2.5B) — the model is trained
+    // against this exact wording, so it must not be reformatted.
+    String MELLUM_TOOLS_PREAMBLE = """
+            # Tools
+
+            You may call one or more functions to assist with the user query.
+
+            You are provided with function signatures within <tools></tools> XML tags:
+            <tools>""";
+    String MELLUM_TOOL_INSTRUCTIONS = """
+            For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+            <tool_call>
+            {"name": <function-name>, "arguments": <args-json-object>}
+            </tool_call>""";
+
+    static String mellum(String system, List<Tool> tools, List<Turn> turns) {
+        var sb = new StringBuilder();
+        var hasSystem = system != null && !system.isBlank();
+        var hasTools = tools != null && !tools.isEmpty();
+        // Unlike Nemotron, the system header appears only when it carries something —
+        // a bare conversation opens directly on the user turn.
+        if (hasTools) {
+            sb.append(CHATML_IM_START).append("system\n");
+            if (hasSystem) sb.append(system.strip()).append("\n\n");
+            appendMellumTools(sb, tools);
+            sb.append(CHATML_IM_END).append('\n');
+        } else if (hasSystem) {
+            sb.append(CHATML_IM_START).append("system\n").append(system.strip())
+                    .append(CHATML_IM_END).append('\n');
+        }
+        var lastQuery = lastMellumQueryIndex(turns);
+        var i = 0;
+        while (i < turns.size()) {
+            i = appendMellumTurn(sb, turns, i, lastQuery);
+        }
+        sb.append(CHATML_IM_START).append("assistant\n");
+        // Thinking off is expressed as a pre-closed block rather than by omitting it:
+        // left bare, the model opens its own <think> and reasons anyway (verified
+        // against the GGUF). Nemotron's template prefills <think>\n to turn thinking
+        // ON; Mellum's does the inverse, which is why there is no prefill here.
+        if (!ZCfg.bool("mellum.enable_thinking", false)) {
+            sb.append(CHATML_THINK_OPEN).append("\n\n").append(CHATML_THINK_CLOSE).append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    private static int appendMellumTurn(StringBuilder sb, List<Turn> turns, int index, int lastQuery) {
+        return switch (turns.get(index)) {
+            case UserText u -> {
+                sb.append(CHATML_IM_START).append("user\n")
+                        .append(u.text() == null ? "" : u.text())
+                        .append(CHATML_IM_END).append('\n');
+                yield index + 1;
+            }
+            case AssistantText a -> {
+                appendMellumAssistant(sb, a.text(), List.of(), index, turns.size(), lastQuery);
+                yield index + 1;
+            }
+            case AssistantToolCalls a -> {
+                appendMellumAssistant(sb, a.text(), a.calls(), index, turns.size(), lastQuery);
+                yield index + 1;
+            }
+            // Consecutive tool results share ONE user turn, as the GGUF template does —
+            // a separate turn per result is a format the model has never seen.
+            case UserToolResults ignored -> {
+                sb.append(CHATML_IM_START).append("user");
+                var next = index;
+                while (next < turns.size() && turns.get(next) instanceof UserToolResults r) {
+                    for (var result : r.results()) {
+                        sb.append("\n<tool_response>\n")
+                                .append(result.content() == null ? "" : result.content())
+                                .append("\n</tool_response>");
+                    }
+                    next++;
+                }
+                sb.append(CHATML_IM_END).append('\n');
+                yield next;
+            }
+        };
+    }
+
+    // Reasoning survives only for assistant turns belonging to the CURRENT query —
+    // everything after the last user message. Replayed history renders as the answer
+    // alone, so old thinking neither burns context nor invites re-reasoning.
+    private static void appendMellumAssistant(StringBuilder sb, String raw, List<ToolCall> calls,
+            int index, int count, int lastQuery) {
+        var content = mellumContent(raw);
+        var reasoning = mellumReasoning(raw);
+        sb.append(CHATML_IM_START).append("assistant\n");
+        if (index > lastQuery && (index == count - 1 || !reasoning.isEmpty())) {
+            sb.append(CHATML_THINK_OPEN).append('\n').append(reasoning).append('\n')
+                    .append(CHATML_THINK_CLOSE).append("\n\n");
+        }
+        sb.append(content);
+        for (var i = 0; i < calls.size(); i++) {
+            // the template joins the first call straight onto empty content
+            if (i > 0 || !content.isEmpty()) sb.append('\n');
+            var call = calls.get(i);
+            sb.append(CHATML_TOOL_CALL_OPEN).append("\n{\"name\": ")
+                    .append(JSONObject.quote(call.name())).append(", \"arguments\": ")
+                    .append(pythonJson(call.input() == null ? new JSONObject() : call.input()))
+                    .append("}\n").append(CHATML_TOOL_CALL_CLOSE);
+        }
+        sb.append(CHATML_IM_END).append('\n');
+    }
+
+    // Mirrors the template's last_query_index. With no user message at all (tool
+    // results only) it degrades to the last turn, so nothing counts as current and
+    // every assistant turn renders as bare history — same as the Jinja default.
+    static int lastMellumQueryIndex(List<Turn> turns) {
+        for (var i = turns.size() - 1; i >= 0; i--) {
+            if (turns.get(i) instanceof UserText) return i;
+        }
+        return turns.size() - 1;
+    }
+
+    /// Jinja: `content.split('</think>')[-1].lstrip('\n')` — the answer is whatever
+    /// follows the LAST close marker; text without one is already an answer.
+    static String mellumContent(String text) {
+        var t = text == null ? "" : text;
+        var close = t.lastIndexOf(CHATML_THINK_CLOSE);
+        return close < 0 ? t : stripLeadingNewlines(t.substring(close + CHATML_THINK_CLOSE.length()));
+    }
+
+    /// Jinja: `content.split('</think>')[0].rstrip('\n').split('<think>')[-1].lstrip('\n')`
+    /// — note it reads up to the FIRST close, while the answer is taken after the last.
+    static String mellumReasoning(String text) {
+        var t = text == null ? "" : text;
+        var close = t.indexOf(CHATML_THINK_CLOSE);
+        if (close < 0) return "";
+        var head = stripTrailingNewlines(t.substring(0, close));
+        var open = head.lastIndexOf(CHATML_THINK_OPEN);
+        return stripLeadingNewlines(open < 0 ? head : head.substring(open + CHATML_THINK_OPEN.length()));
+    }
+
+    private static void appendMellumTools(StringBuilder sb, List<Tool> tools) {
+        sb.append(MELLUM_TOOLS_PREAMBLE);
+        for (var tool : tools) {
+            sb.append('\n').append(mellumToolJson(tool));
+        }
+        sb.append("\n</tools>\n\n").append(MELLUM_TOOL_INSTRUCTIONS);
+    }
+
+    // `tool | tojson` over the OpenAI function envelope the template is trained on.
+    // Assembled by hand rather than via JSONObject: org.json is HashMap-backed, and
+    // the trained order is type, then name, description, parameters.
+    private static String mellumToolJson(Tool tool) {
+        return "{\"type\": \"function\", \"function\": {\"name\": "
+                + JSONObject.quote(tool.name())
+                + ", \"description\": " + JSONObject.quote(tool.description() == null ? "" : tool.description())
+                + ", \"parameters\": "
+                + pythonJson(tool.inputSchema() == null ? new JSONObject() : tool.inputSchema())
+                + "}}";
+    }
+
+    private static String stripLeadingNewlines(String s) {
+        var start = 0;
+        while (start < s.length() && s.charAt(start) == '\n') start++;
+        return s.substring(start);
+    }
+
+    private static String stripTrailingNewlines(String s) {
+        var end = s.length();
+        while (end > 0 && s.charAt(end - 1) == '\n') end--;
+        return s.substring(0, end);
     }
 
     String GEMMA_QUOTE = "<|\"|>";

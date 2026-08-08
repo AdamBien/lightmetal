@@ -34,12 +34,12 @@ public final class NemotronChatTemplate implements ChatTemplate {
     // miss the mapping, like GemmaChatTemplate's <turn|> stop.
     @Override
     public List<String> stopSequences() {
-        return List.of(PromptTemplate.NEMOTRON_IM_END);
+        return List.of(PromptTemplate.CHATML_IM_END);
     }
 
     @Override
     public List<String> toolCallOpenMarkers() {
-        return List.of(PromptTemplate.NEMOTRON_TOOL_CALL_OPEN);
+        return List.of(PromptTemplate.CHATML_TOOL_CALL_OPEN);
     }
 
     // The generation prompt prefills `<think>\n`, so the model starts inside its
@@ -47,7 +47,7 @@ public final class NemotronChatTemplate implements ChatTemplate {
     @Override
     public Stream<Token> tagChannels(Stream<Token> tokens) {
         return tokens.gather(Gatherer.<Token, ChannelFilter, Token>ofSequential(
-                () -> new ChannelFilter(PromptTemplate.NEMOTRON_THINK_CLOSE, enableThinking),
+                () -> new ChannelFilter(PromptTemplate.CHATML_THINK_CLOSE, enableThinking),
                 (filter, in, down) -> {
                     filter.consume(in).forEach(down::push);
                     return true;
@@ -57,8 +57,9 @@ public final class NemotronChatTemplate implements ChatTemplate {
 
     @Override
     public ToolCallParser.Parsed parse(String generated) {
-        var text = stripThinking(stripTrailingEnd(generated == null ? "" : generated));
-        var firstOpen = text.indexOf(PromptTemplate.NEMOTRON_TOOL_CALL_OPEN);
+        var text = PromptTemplate.chatmlStripThinking(
+                PromptTemplate.chatmlStripTrailingEnd(generated == null ? "" : generated));
+        var firstOpen = text.indexOf(PromptTemplate.CHATML_TOOL_CALL_OPEN);
         if (firstOpen < 0) {
             return new ToolCallParser.Text(text.strip());
         }
@@ -68,37 +69,18 @@ public final class NemotronChatTemplate implements ChatTemplate {
                 : new ToolCallParser.Calls(text.substring(0, firstOpen).strip(), calls);
     }
 
-    // The opening <think> is part of the PROMPT prefill, so raw output usually
-    // looks like `reasoning</think>answer` — keep what follows the last close.
-    static String stripThinking(String text) {
-        var close = text.lastIndexOf(PromptTemplate.NEMOTRON_THINK_CLOSE);
-        if (close >= 0) {
-            return text.substring(close + PromptTemplate.NEMOTRON_THINK_CLOSE.length());
-        }
-        var open = text.indexOf(PromptTemplate.NEMOTRON_THINK_OPEN);
-        return open >= 0 ? text.substring(0, open) : text;
-    }
-
-    static String stripTrailingEnd(String s) {
-        var t = s.stripTrailing();
-        while (t.endsWith(PromptTemplate.NEMOTRON_IM_END)) {
-            t = t.substring(0, t.length() - PromptTemplate.NEMOTRON_IM_END.length()).stripTrailing();
-        }
-        return t;
-    }
-
     private static List<ToolCall> extractCalls(String text, int from) {
         var out = new ArrayList<ToolCall>();
         var cursor = from;
         while (true) {
-            var open = text.indexOf(PromptTemplate.NEMOTRON_TOOL_CALL_OPEN, cursor);
+            var open = text.indexOf(PromptTemplate.CHATML_TOOL_CALL_OPEN, cursor);
             if (open < 0) break;
-            var close = text.indexOf(PromptTemplate.NEMOTRON_TOOL_CALL_CLOSE, open);
+            var close = text.indexOf(PromptTemplate.CHATML_TOOL_CALL_CLOSE, open);
             if (close < 0) break;
-            var body = text.substring(open + PromptTemplate.NEMOTRON_TOOL_CALL_OPEN.length(), close);
+            var body = text.substring(open + PromptTemplate.CHATML_TOOL_CALL_OPEN.length(), close);
             var call = parseCall(body);
             if (call != null) out.add(call);
-            cursor = close + PromptTemplate.NEMOTRON_TOOL_CALL_CLOSE.length();
+            cursor = close + PromptTemplate.CHATML_TOOL_CALL_CLOSE.length();
         }
         return out;
     }
