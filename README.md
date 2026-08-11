@@ -3,8 +3,8 @@
 GPU LLM inference on Apple Silicon from a single Java 25 executable JAR with
 zero dependencies. Binds a Metal-enabled `libllama.dylib` through the Foreign
 Function & Memory API. Runs Mistral-, Gemma-, Nemotron- and Mellum-architecture
-GGUF models — Mistral Medium 3.5, Mistral Nemo, Devstral, Gemma 3, Gemma 4,
-Nemotron 3 Nano, Mellum 2.
+GGUF models — Mistral Medium 3.5, Mistral 7B Instruct v0.3, Mistral Nemo,
+Devstral, Gemma 3, Gemma 4, Nemotron 3 Nano, Mellum 2.
 
 ![lightmetal](lightmetal.png)
 
@@ -290,6 +290,7 @@ All optional — defaults shown.
 | `top-k` | `-top-k` | `40` | Top-k sampling cutoff. |
 | `min-p` | `-min-p` | `0.05` | Min-p sampling cutoff. |
 | `seed` | `-seed` | `nanoTime()` | RNG seed. |
+| `generation.repeat.limit` | — | `64` | Stops a run once the same token id has been sampled this many times consecutively, logging `[warn] degenerate output: …`. Guards against a backend whose forward pass has broken down — it collapses onto one token from the first one sampled and never reaches an end-of-generation token, spending the whole budget on it. `0` disables. |
 
 ### HTTP server
 
@@ -300,10 +301,51 @@ All optional — defaults shown.
 
 ### Chat template
 
+The template is resolved from the GGUF itself, in two passes: `general.architecture`
+first, then a fragment of `general.name`. The architecture pass exists because
+`general.name` is free-form — one catalogue file reports its HuggingFace cache directory,
+`models--mistralai--Mistral-7B-Instruct-v0.3` — and because no name fragment separates
+`mistral3` from `mistral4`, both of which contain "mistral".
+
+| Template | Resolved by | Wire format |
+|---|---|---|
+| `MistralTekkenChatTemplate` | arch `mistral3`, arch `mistral4`, name `mistral`, `devstral`, `nemo` | `[SYSTEM_PROMPT]` · `[AVAILABLE_TOOLS]` · `[MODEL_SETTINGS]` · `[INST]` · `[TOOL_CALLS]<name>[ARGS]<json>` |
+| `MistralInstructChatTemplate` | name `instruct-v0.` (Mistral-7B-Instruct v0.1/v0.2/v0.3) | `[AVAILABLE_TOOLS] ` · `[INST] ` · `[TOOL_CALLS] [{…}]` — one space after every control token, none before. This vocabulary has no `[SYSTEM_PROMPT]`, `[MODEL_SETTINGS]` or `[ARGS]` token, so the system prompt opens the first `[INST]` block. |
+| `GemmaChatTemplate` | name `gemma-3`, `gemma-4` | `<\|turn>` · `<\|tool_call>` |
+| `NemotronChatTemplate` | name `nemotron` | ChatML · `<function=…>` |
+| `MellumChatTemplate` | name `mellum` | ChatML · `<tool_call>` JSON |
+
+An unmatched GGUF is rejected rather than rendered with a generic template — adding a
+model is a one-line entry in `lm.prompting.control.ModelFamily`.
+
 | Property | Default | Effect |
 |---|---|---|
-| `template` | _(unset)_ | Legacy escape hatch for the HTTP endpoints only: `v0.3`, `v3` or `basic` force the plain Mistral `[INST]` prompt. The chat template itself is resolved from the GGUF's `general.name` — `mistral4`, `gemma4`, `nemotron` or `mellum` — and any other value here is ignored. |
-| `mistral4.reasoning_effort` | `none` | Value emitted in the `[MODEL_SETTINGS]{"reasoning_effort":"…"}` block. Typical: `none`, `low`, `medium`, `high`. |
+| `template` | _(unset)_ | Legacy escape hatch for the HTTP endpoints only: `v0.3`, `v3` or `basic` force the plain Mistral `[INST]` prompt. Any other value is ignored. Superseded by `MistralInstructChatTemplate`, which the v0.x models now resolve to on their own. |
+| `mistral4.reasoning_effort` | `none` | Value emitted in the tekken `[MODEL_SETTINGS]{"reasoning_effort":"…"}` block. The trained format accepts `none` or `high`. |
+
+#### Known limitation: `arch=mistral4` on Metal
+
+Mistral Small 4 (2603) GGUFs answer short prompts and then collapse into an endless
+`<SPECIAL_31>` — an unnamed reserved token — once the batch exceeds roughly 32 tokens.
+This is llama.cpp's Metal path for the architecture, not the prompt: the model is a
+128-expert MoE with MLA attention, and the same batch is computed correctly on the CPU.
+Reproduce it without lightmetal, on `llama.cpp 10310`:
+
+```bash
+P='[INST]'$(printf ' filler%.0s' {1..24})' What is the capital of France? Answer in one word.[/INST]'
+llama-completion -m Mistral-Small-4-119B-2603-…-00001-of-00003.gguf \
+    -no-cnv -st --temp 0 -n 6 -c 4096 --special -ngl 0  -p "$P"   # Paris</s>
+llama-completion -m Mistral-Small-4-119B-2603-…-00001-of-00003.gguf \
+    -no-cnv -st --temp 0 -n 6 -c 4096 --special -ngl 99 -p "$P"   # <SPECIAL_31>×6
+```
+
+Unaffected by `flash_attn`, `n_ubatch` and `n_ctx`, and reproducible on quantizations from
+two independent publishers. Tracked upstream as
+[ggml-org/llama.cpp#20668](https://github.com/ggml-org/llama.cpp/issues/20668). The wire
+format needs no change — Mistral Small 4 and Mistral Medium 3.5 ship byte-identical
+special-token tables and chat templates, and Medium 3.5 runs correctly. `MISTRAL_4` is
+registered so the model resolves explicitly rather than falling through a name fragment;
+`generation.repeat.limit` keeps a run like this from spending the whole token budget.
 | `gemma4.enable_thinking` | `false` | When `true`, leaves the `<\|channel>thought` block open so the model emits reasoning before its answer (stripped from history on subsequent turns). |
 | `nemotron.enable_thinking` | `false` | When `true`, prefills `<think>` in the generation prompt so the model reasons before answering. |
 | `mellum.enable_thinking` | `false` | When `true`, leaves the generation prompt bare so the model opens its own `<think>` block. Left `false`, the prompt carries a pre-closed block — Mellum reasons unless told not to, so omitting the block is not the same as disabling it. |

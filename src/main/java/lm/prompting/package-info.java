@@ -4,7 +4,8 @@
 ///
 /// ## Boundary
 ///
-/// - `resolve-family` — bind a GGUF's model name to its chat template
+/// - `resolve-family` — bind a GGUF's architecture or model name to its chat
+///   template
 /// - `render-prompt` — system + tools + turns → the exact prompt string the
 ///   model expects
 /// - `parse-output` — raw generated text → visible text and structured tool
@@ -22,10 +23,18 @@
 /// - R1.2 — The BC shall try most-specific fragments first. _(why:
 ///   "nemotron" contains "nemo"; without ordering, a Nemotron GGUF would
 ///   silently render with the Mistral template)_
-/// - R1.3 — If no fragment matches, then the BC shall report no family
-///   rather than fall back to a generic template. _(why: a silently wrong
-///   template produces garbage that looks like a model bug; adding a model
-///   is a one-line registry entry)_
+/// - R1.3 — If neither the architecture nor a fragment matches, then the BC
+///   shall report no family rather than fall back to a generic template.
+///   _(why: a silently wrong template produces garbage that looks like a
+///   model bug; adding a model is a one-line registry entry)_
+/// - R1.4 — When a GGUF's architecture names a family, the BC shall resolve
+///   on the architecture before considering the model name. _(why:
+///   general.name is free-form — one catalogue file reports the HuggingFace
+///   cache directory — and no name fragment separates mistral3 from
+///   mistral4, since both names contain "mistral")_
+/// - R1.5 — While an architecture is too generic to name a family, the BC
+///   shall fall back to the model-name fragment. _(why: "llama" covers most
+///   of the catalogue, including the Mistral Instruct line)_
 ///
 /// ### R2: Rendering
 ///
@@ -43,6 +52,13 @@
 ///   user message. _(why: a tool-calling loop is one turn — dropping the
 ///   reasoning between calls makes the model re-derive why it called the
 ///   tool)_
+/// - R2.5 — The BC shall emit only markers present in the family's
+///   vocabulary. _(why: the Mistral Instruct line has no [SYSTEM_PROMPT],
+///   [MODEL_SETTINGS] or [ARGS] token, so rendering it in the tekken format
+///   puts those strings into the prompt as plain text and the model answers
+///   off-format)_
+/// - R2.6 — While a family has no system role, the BC shall fold the system
+///   prompt into the first user turn.
 ///
 /// ### R3: Output parsing
 ///

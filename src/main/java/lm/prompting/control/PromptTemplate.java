@@ -12,7 +12,9 @@ import lm.prompting.entity.AssistantText;
 import lm.prompting.entity.AssistantToolCalls;
 import lm.prompting.entity.Turn;
 import lm.prompting.entity.UserText;
+import lm.prompting.entity.ToolResult;
 import lm.prompting.entity.UserToolResults;
+import lm.tools.control.ToolCallParser;
 import lm.tools.entity.Tool;
 import lm.tools.entity.ToolCall;
 
@@ -45,19 +47,124 @@ public interface PromptTemplate {
         return sb.toString();
     }
 
-    static String mistral4(String system, List<Tool> tools, List<Turn> turns) {
+    // Shared by both live Mistral formats: the tekken vocabulary (mistral3, mistral4,
+    // Devstral, Nemo) and the older Instruct one. What differs is the spacing and the
+    // tool encoding, not these markers.
+    String MISTRAL_INST_OPEN = "[INST]";
+    String MISTRAL_INST_CLOSE = "[/INST]";
+    String MISTRAL_EOS = "</s>";
+    String MISTRAL_TOOLS_OPEN = "[AVAILABLE_TOOLS]";
+    String MISTRAL_TOOLS_CLOSE = "[/AVAILABLE_TOOLS]";
+    String MISTRAL_TOOL_RESULTS_OPEN = "[TOOL_RESULTS]";
+    String MISTRAL_TOOL_RESULTS_CLOSE = "[/TOOL_RESULTS]";
+
+    static String mistralTekken(String system, List<Tool> tools, List<Turn> turns) {
         var sb = new StringBuilder();
         if (system != null && !system.isEmpty()) {
             sb.append("[SYSTEM_PROMPT]").append(system).append("[/SYSTEM_PROMPT]");
         }
         if (!tools.isEmpty()) {
-            sb.append("[AVAILABLE_TOOLS]").append(mistralToolsJson(tools)).append("[/AVAILABLE_TOOLS]");
+            sb.append(MISTRAL_TOOLS_OPEN).append(mistralToolsJson(tools)).append(MISTRAL_TOOLS_CLOSE);
         }
         sb.append(modelSettings());
         for (var turn : turns) {
             appendTurn(sb, turn);
         }
         return sb.toString();
+    }
+
+    /// The v0.1/v0.2/v0.3 Instruct format, as mistral-common tokenizer V3 emits it:
+    /// `[AVAILABLE_TOOLS] <json>[/AVAILABLE_TOOLS][INST] user[/INST] answer</s>`.
+    /// Every control token is followed by one space and none is preceded by one — the
+    /// SentencePiece vocabulary of these models has no [SYSTEM_PROMPT], [ARGS],
+    /// [MODEL_SETTINGS] or [THINK], so emitting the tekken format here would put those
+    /// markers into the prompt as plain text.
+    static String mistralV3(String system, List<Tool> tools, List<Turn> turns) {
+        var sb = new StringBuilder();
+        // No system role exists in this format; the system prompt opens the first user
+        // block, exactly as llama.cpp's own LLM_CHAT_TEMPLATE_MISTRAL_V3 formats it.
+        var pendingSystem = system == null ? "" : system.strip();
+        var lastUser = lastUserIndex(turns);
+        for (var i = 0; i < turns.size(); i++) {
+            var turn = turns.get(i);
+            // mistral-common keeps the tool declarations adjacent to the live query.
+            if (i == lastUser && tools != null && !tools.isEmpty()) {
+                sb.append(MISTRAL_TOOLS_OPEN).append(' ')
+                        .append(mistralToolsJson(tools)).append(MISTRAL_TOOLS_CLOSE);
+            }
+            switch (turn) {
+                case UserText u -> {
+                    var text = u.text() == null ? "" : u.text().strip();
+                    sb.append(MISTRAL_INST_OPEN).append(' ');
+                    if (!pendingSystem.isEmpty()) {
+                        sb.append(pendingSystem).append("\n\n");
+                        pendingSystem = "";
+                    }
+                    sb.append(text).append(MISTRAL_INST_CLOSE);
+                }
+                case AssistantText a -> sb.append(' ')
+                        .append(a.text() == null ? "" : a.text().strip())
+                        .append(MISTRAL_EOS);
+                case AssistantToolCalls a -> {
+                    var text = a.text() == null ? "" : a.text().strip();
+                    if (!text.isEmpty()) sb.append(' ').append(text);
+                    sb.append(ToolCallParser.TOOL_CALLS_MARKER).append(' ')
+                            .append(mistralV3Calls(a.calls())).append(MISTRAL_EOS);
+                }
+                case UserToolResults r -> {
+                    for (var result : r.results()) {
+                        sb.append(MISTRAL_TOOL_RESULTS_OPEN).append(' ')
+                                .append(mistralV3Result(result))
+                                .append(MISTRAL_TOOL_RESULTS_CLOSE);
+                    }
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private static int lastUserIndex(List<Turn> turns) {
+        for (var i = turns.size() - 1; i >= 0; i--) {
+            if (turns.get(i) instanceof UserText) return i;
+        }
+        return -1;
+    }
+
+    // Assembled by hand rather than via JSONObject: org.json is HashMap-backed, and the
+    // trained key order is name, arguments, id.
+    private static String mistralV3Calls(List<ToolCall> calls) {
+        var sb = new StringBuilder("[");
+        for (var i = 0; i < calls.size(); i++) {
+            if (i > 0) sb.append(", ");
+            var call = calls.get(i);
+            sb.append("{\"name\": ").append(JSONObject.quote(call.name()))
+                    .append(", \"arguments\": ")
+                    .append(pythonJson(call.input() == null ? new JSONObject() : call.input()))
+                    .append(", \"id\": ").append(JSONObject.quote(mistralV3CallId(call.id())))
+                    .append('}');
+        }
+        return sb.append(']').toString();
+    }
+
+    private static String mistralV3Result(ToolResult result) {
+        return "{\"content\": " + JSONObject.quote(result.content() == null ? "" : result.content())
+                + ", \"call_id\": " + JSONObject.quote(mistralV3CallId(result.callId())) + "}";
+    }
+
+    /// V3 tool-call ids must be exactly 9 alphanumeric characters. Ids reaching this BC
+    /// come from clients ("toolu_01A…") or from ToolCall.of, so they are folded down
+    /// deterministically — the same id in a call and in its result maps to the same 9
+    /// characters, which is what lets the model pair them up.
+    static String mistralV3CallId(String id) {
+        var alnum = new StringBuilder();
+        if (id != null) {
+            for (var i = 0; i < id.length(); i++) {
+                var c = id.charAt(i);
+                if (Character.isLetterOrDigit(c) && c < 128) alnum.append(c);
+            }
+        }
+        while (alnum.length() < 9) alnum.insert(0, '0');
+        return alnum.substring(alnum.length() - 9);
     }
 
     private static void appendTurn(StringBuilder sb, Turn turn) {
@@ -80,17 +187,22 @@ public interface PromptTemplate {
         }
     }
 
+    // Assembled by hand rather than via JSONObject: org.json is HashMap-backed, and the
+    // trained order is type, then name, description, parameters.
     private static String mistralToolsJson(List<Tool> tools) {
-        var arr = new JSONArray();
-        for (var t : tools) {
-            arr.put(new JSONObject()
-                    .put("type", "function")
-                    .put("function", new JSONObject()
-                            .put("name", t.name())
-                            .put("description", t.description())
-                            .put("parameters", t.inputSchema() == null ? new JSONObject() : t.inputSchema())));
+        var sb = new StringBuilder("[");
+        for (var i = 0; i < tools.size(); i++) {
+            if (i > 0) sb.append(", ");
+            var tool = tools.get(i);
+            sb.append("{\"type\": \"function\", \"function\": {\"name\": ")
+                    .append(JSONObject.quote(tool.name()))
+                    .append(", \"description\": ")
+                    .append(JSONObject.quote(tool.description() == null ? "" : tool.description()))
+                    .append(", \"parameters\": ")
+                    .append(pythonJson(tool.inputSchema() == null ? new JSONObject() : tool.inputSchema()))
+                    .append("}}");
         }
-        return pythonJson(arr);
+        return sb.append(']').toString();
     }
 
     /**

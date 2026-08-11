@@ -33,6 +33,17 @@
 ///   the call with empty arguments rather than abort the parse.
 /// - R2.5 — If a call lacks a name, then the BC shall drop that call.
 /// - R2.6 — The BC shall ignore trailing end-of-sequence markers.
+/// - R2.7 — When the output encodes calls as one JSON array
+///   (`[TOOL_CALLS] [{"name": …, "arguments": …, "id": …}]`), the BC shall
+///   recover every entry. _(why: the Mistral Instruct line has no [ARGS]
+///   token — its whole call list is a single array)_
+/// - R2.8 — If the array form arrives without its marker, then the BC shall
+///   still recover the calls, provided every entry is an object carrying a
+///   name. _(why: a model given an unfamiliar prompt emits the payload as
+///   plain text; the guard keeps an ordinary JSON array in an answer from
+///   becoming phantom calls)_
+/// - R2.9 — When a call's arguments arrive as a JSON string rather than an
+///   object, the BC shall parse them.
 ///
 /// ## Entities
 ///
