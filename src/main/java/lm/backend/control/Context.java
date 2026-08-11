@@ -88,16 +88,24 @@ public final class Context implements AutoCloseable {
     private Stream<Token> tokenStream(GenerationConfig cfg) {
         var sampler = Sampler.create(cfg, model.vocab);
         var state = new GenState(cfg.maxTokens(), cfg.stopSequences());
+        var guard = new RepeatGuard(cfg.repeatLimit());
         return Stream
-                .generate(() -> nextToken(sampler, state))
+                .generate(() -> nextToken(sampler, state, guard))
                 .takeWhile(t -> t != null)
                 .onClose(sampler::close);
     }
 
-    private Token nextToken(Sampler sampler, GenState state) {
+    private Token nextToken(Sampler sampler, GenState state, RepeatGuard guard) {
         if (state.done()) return null;
         var id = sampler.sample(ctx, LAST_LOGITS_IDX);
         if (llama_vocab_is_eog(model.vocab, id)) {
+            state.stop();
+            return null;
+        }
+        if (guard.degenerate(id)) {
+            Log.system("[warn] degenerate output: token " + id + " ("
+                    + tokenizer.tokenToPiece(id, true) + ") repeated " + guard.run()
+                    + " times — stopping after " + state.produced + " tokens");
             state.stop();
             return null;
         }

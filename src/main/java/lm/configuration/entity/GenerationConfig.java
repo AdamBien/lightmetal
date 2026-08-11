@@ -11,18 +11,29 @@ public record GenerationConfig(
         int topK,
         float minP,
         long seed,
-        List<String> stopSequences) {
+        List<String> stopSequences,
+        int repeatLimit) {
+
+    /// Consecutive repetitions of one token id that mark a run as degenerate. Set
+    /// generation.repeat.limit to 0 to let such a run consume the whole token budget.
+    public static final int DEFAULT_REPEAT_LIMIT = 64;
 
     public GenerationConfig {
         stopSequences = stopSequences == null ? List.of() : List.copyOf(stopSequences);
     }
 
     public GenerationConfig(int maxTokens, float temperature, float topP, int topK, float minP, long seed) {
-        this(maxTokens, temperature, topP, topK, minP, seed, List.of());
+        this(maxTokens, temperature, topP, topK, minP, seed, List.of(), configuredRepeatLimit());
     }
 
     public static GenerationConfig defaults() {
-        return new GenerationConfig(2048, 0.7f, 0.9f, 40, 0.05f, System.nanoTime(), List.of());
+        return new GenerationConfig(2048, 0.7f, 0.9f, 40, 0.05f, System.nanoTime(), List.of(), configuredRepeatLimit());
+    }
+
+    // Read here rather than only in fromProperties(): every HTTP request config is built
+    // from defaults(), so this is the one place that reaches all of them.
+    private static int configuredRepeatLimit() {
+        return ZCfg.integer("generation.repeat.limit", DEFAULT_REPEAT_LIMIT);
     }
 
     public static GenerationConfig fromProperties() {
@@ -38,6 +49,6 @@ public record GenerationConfig(
     }
 
     public GenerationConfig withStopSequences(List<String> stops) {
-        return new GenerationConfig(maxTokens, temperature, topP, topK, minP, seed, stops);
+        return new GenerationConfig(maxTokens, temperature, topP, topK, minP, seed, stops, repeatLimit);
     }
 }

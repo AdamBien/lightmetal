@@ -43,6 +43,11 @@
 ///   only whole pieces would let stops slip through)_
 /// - R3.6 — When the token stream closes, the BC shall release the sampler
 ///   chain.
+/// - R3.7 — When one token id is sampled the configured number of times in a
+///   row, the BC shall stop and report it, without emitting that token.
+///   _(why: a forward pass the backend miscomputes collapses onto a single
+///   token from the first one sampled and never reaches end-of-generation,
+///   so the whole budget is spent on one repeated piece)_
 ///
 /// ### R4: Reset a session
 ///

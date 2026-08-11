@@ -31,8 +31,8 @@
 ///   tensor weights. Read by `inspection`, loaded by `backend`.
 /// - Shard — one file of a multi-file GGUF (`…-00001-of-00003.gguf`); only
 ///   the first is addressed, llama.cpp follows the rest.
-/// - Model family — the n:1 binding of GGUF model names to a chat template.
-///   Owned by `prompting`.
+/// - Model family — the n:1 binding of a GGUF's architecture, or failing that
+///   its model name, to a chat template. Owned by `prompting`.
 /// - Turn — one conversation step: user text, assistant text, assistant
 ///   tool calls, or tool results. Owned by `prompting`.
 /// - Channel — the tag on a generated token: `thought` (reasoning) vs
