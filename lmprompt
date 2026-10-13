@@ -1,5 +1,10 @@
 #!/usr/bin/env -S java --enable-native-access=ALL-UNNAMED --source 25 -cp ./zbo/lightmetal.jar:./lightmetal.jar
 
+import java.awt.AWTError;
+import java.awt.HeadlessException;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
+
 import lm.catalog.boundary.ModelCatalog;
 import lm.configuration.control.ZCfg;
 import lm.configuration.entity.GenerationConfig;
@@ -7,7 +12,7 @@ import lm.generation.boundary.LightMetal;
 import lm.generation.entity.Tps;
 
 String name = MethodHandles.lookup().lookupClass().getName();
-String version = "2026-06-10.1";
+String version = "2026-10-13.1";
 String DIM = "\033[2m";
 String RESET = "\033[0m";
 
@@ -30,6 +35,7 @@ void main(String... args) throws Exception {
         System.err.println(name + ": empty prompt");
         System.exit(1);
     }
+    clip(prompt);
 
     var count = new AtomicLong();
     var thoughtCount = new AtomicLong();
@@ -67,6 +73,16 @@ void main(String... args) throws Exception {
     }
     if (failed) {
         System.exit(1);
+    }
+}
+
+void clip(String prompt) {
+    // keeps AWT from adding a Dock icon on macOS
+    System.setProperty("apple.awt.UIElement", "true");
+    try {
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(prompt), null);
+    } catch (AWTError | HeadlessException | IllegalStateException e) {
+        System.err.println(name + ": prompt not copied to clipboard: " + e.getMessage());
     }
 }
 
