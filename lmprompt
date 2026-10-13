@@ -77,7 +77,8 @@ void main(String... args) throws Exception {
 }
 
 void clip(String prompt) {
-    // keeps AWT from adding a Dock icon on macOS
+    // keeps AWT from adding a Dock icon on macOS:
+    // https://developer.apple.com/library/archive/releasenotes/Java/JavaLeopardUpdate2RN/Introduction/Introduction.html
     System.setProperty("apple.awt.UIElement", "true");
     try {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(prompt), null);
